@@ -246,8 +246,10 @@ def generate_insights(data):
         The following is a dataset description: {description}
         Please provide detailed insights into trends, outliers, and patterns. 
         The dataset columns are: {', '.join(data.columns)}.
-        Each insight should be a separate block of text as follows:
-        <b>heading</b>: insight;&nbsp
+        Each insight should be a separate block of text exactlyas follows with no newline in between:
+
+        <b>headline</b>: insight;&nbsp
+        
         """
         response = openai.chat.completions.create(
             model="gpt-4",
@@ -280,8 +282,10 @@ def generate_recommendations(data):
     try:
         prompt = """
         Based on the following dataset trends, provide actionable recommendations to lower electricity and gas usage.
-        Each recommendation should be a separate block of text as follows:
-        <b>heading</b>: recommendation;&nbsp
+        Each recommendation should be a separate block of text exactly as follows with no newline in between:
+       
+        <b>headline</b>: recommendation;&nbsp
+        
         """
         prompt += data.describe(include='all').to_string()
         response = openai.chat.completions.create(
