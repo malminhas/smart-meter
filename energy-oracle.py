@@ -1,3 +1,32 @@
+"""
+Energy Oracle - EDF Energy Usage Analysis and Reporting Tool
+
+This script analyzes EDF Energy consumption data downloaded from the EDF Energy portal
+and generates an HTML report with insights and recommendations derived from that data 
+using OpenAI's GPT-4 API. It includes data visualization, AI-powered analysis, 
+and formatted output.
+
+Security Considerations:
+    - API Key: Stored in environment variable to prevent exposure
+    - Input Validation: CSV file path should be validated
+    - HTML Output: Content should be escaped to prevent XSS
+    - File Operations: Paths should be sanitized
+    - Rate Limiting: Consider adding for API calls
+    - Error Handling: Sensitive information is logged safely
+
+Dependencies:
+    - pandas: Data manipulation
+    - openai: GPT-4 API integration
+    - matplotlib: Graph generation
+    - jinja2: HTML template rendering
+
+Usage:
+    python energy-oracle.py <path_to_csv_file>
+
+Author: Mal Minhas (sic)
+Date: 10.12.2024
+"""
+
 import pandas as pd
 import openai
 import matplotlib.pyplot as plt
@@ -5,6 +34,55 @@ import os
 import webbrowser
 import logging
 from jinja2 import Template
+from pathlib import Path
+import html
+
+# Security enhancement: Validate file paths
+def validate_file_path(file_path):
+    """
+    Validate and sanitize file paths to prevent directory traversal attacks.
+    
+    Args:
+        file_path (str): The file path to validate
+        
+    Returns:
+        Path: A sanitized Path object
+        
+    Raises:
+        ValueError: If the path is invalid or suspicious
+    """
+    try:
+        path = Path(file_path).resolve()
+        if not path.exists():
+            raise ValueError(f"File does not exist: {file_path}")
+        # Ensure the path doesn't contain suspicious patterns
+        if any(part.startswith('.') for part in path.parts):
+            raise ValueError("Suspicious file path detected")
+        return path
+    except Exception as e:
+        logger.error(f"Invalid file path: {str(e)}")
+        raise ValueError(f"Invalid file path: {str(e)}")
+
+# Security enhancement: Sanitize HTML content
+def sanitize_html_content(content):
+    """
+    Sanitize HTML content to prevent XSS attacks.
+    
+    Args:
+        content (str): Raw HTML content
+        
+    Returns:
+        str: Sanitized HTML content
+    """
+    # Allow only specific HTML tags
+    allowed_tags = ['b', 'i', 'u', 'p', 'br', 'li', 'ul', 'ol']
+    # Basic HTML escaping
+    content = html.escape(content)
+    # Re-enable allowed tags
+    for tag in allowed_tags:
+        content = content.replace(f'&lt;{tag}&gt;', f'<{tag}>')
+        content = content.replace(f'&lt;/{tag}&gt;', f'</{tag}>')
+    return content
 
 # Configure logging
 logging.basicConfig(
@@ -98,9 +176,27 @@ html_template = """
 """
 
 def generate_graph(data, output_path):
-    """Generate the graph and save as an image."""
+    """
+    Generate energy consumption visualization graph.
+    
+    Args:
+        data (pandas.DataFrame): Energy consumption data
+        output_path (str): Path to save the generated graph
+        
+    Raises:
+        ValueError: If data format is invalid
+        IOError: If unable to save the graph
+    """
     logger.info("Generating energy consumption graph")
     try:
+        # Validate output path
+        output_path = validate_file_path(output_path)
+        
+        # Validate required columns
+        required_columns = ['Timestamp', 'Electricity consumption (kWh)', 'Gas consumption (kWh)']
+        if not all(col in data.columns for col in required_columns):
+            raise ValueError("Missing required columns in data")
+
         data['Timestamp'] = pd.to_datetime(data['Timestamp'], format='%m/%Y')
         
         fig, ax1 = plt.subplots(figsize=(12, 6))
@@ -126,13 +222,30 @@ def generate_graph(data, output_path):
         raise
 
 def generate_insights(data):
-    """Generate key insights using OpenAI GPT-4."""
+    """
+    Generate insights using OpenAI GPT-4.
+    
+    Args:
+        data (pandas.DataFrame): Energy consumption data
+        
+    Returns:
+        str: HTML-formatted insights
+        
+    Raises:
+        openai.error.OpenAIError: If API call fails
+        ValueError: If data format is invalid
+    """
     logger.info("Generating insights using GPT-4")
     try:
+        # Rate limiting consideration
+        MAX_RETRIES = 3
+        RETRY_DELAY = 1  # seconds
+        
         description = data.describe(include='all').to_dict()
         prompt = f"""
         The following is a dataset description: {description}
-        Please provide detailed insights into trends, outliers, and patterns. The dataset columns are: {', '.join(data.columns)}.
+        Please provide detailed insights into trends, outliers, and patterns. 
+        The dataset columns are: {', '.join(data.columns)}.
         Each insight should be a separate block of text as follows:
         <b>heading</b>: insight;&nbsp
         """
@@ -150,7 +263,19 @@ def generate_insights(data):
         raise
 
 def generate_recommendations(data):
-    """Generate recommendations for lowering energy usage."""
+    """
+    Generate energy usage recommendations using OpenAI GPT-4.
+    
+    Args:
+        data (pandas.DataFrame): Energy consumption data
+        
+    Returns:
+        str: HTML-formatted recommendations
+        
+    Raises:
+        openai.error.OpenAIError: If API call fails
+        ValueError: If data format is invalid
+    """
     logger.info("Generating recommendations using GPT-4")
     try:
         prompt = """
@@ -177,9 +302,30 @@ def split_into_list(text):
     return [line.strip() for line in text.split("\n") if line.strip()]
 
 def generate_report(data, graph_path, insights, recommendations, output_path):
-    """Generate an HTML report."""
+    """
+    Generate HTML report with insights and recommendations.
+    
+    Args:
+        data (pandas.DataFrame): Energy consumption data
+        graph_path (str): Path to the generated graph
+        insights (str): HTML-formatted insights
+        recommendations (str): HTML-formatted recommendations
+        output_path (str): Path to save the HTML report
+        
+    Raises:
+        IOError: If unable to write the report
+        jinja2.TemplateError: If template rendering fails
+    """
     logger.info(f"Generating HTML report to {output_path}")
     try:
+        # Validate paths
+        graph_path = validate_file_path(graph_path)
+        output_path = validate_file_path(output_path)
+        
+        # Sanitize content
+        insights = sanitize_html_content(insights)
+        recommendations = sanitize_html_content(recommendations)
+        
         template = Template(html_template)
         insights_list = split_into_list(insights)
         recommendations_list = split_into_list(recommendations)
@@ -191,18 +337,55 @@ def generate_report(data, graph_path, insights, recommendations, output_path):
         logger.error(f"Error generating HTML report: {str(e)}")
         raise
 
+def get_api_key():
+    """
+    Get OpenAI API key from environment variables with fallback options.
+    
+    Returns:
+        str: OpenAI API key
+        
+    Raises:
+        ValueError: If no API key is found
+    """
+    # Try different common environment variable names
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_API_KEY")
+    
+    if not api_key:
+        raise ValueError(
+            "OpenAI API key not found. Please set either OPENAI_API_KEY or OPEN_API_KEY "
+            "environment variable with your API key. You can get your API key from "
+            "https://platform.openai.com/api-keys"
+        )
+    
+    return api_key
+
 def main():
+    """
+    Main execution function for the Energy Oracle tool.
+    
+    Command line arguments:
+        csv_file (str): Path to the CSV file containing energy data
+        
+    Environment variables required:
+        OPEN_API_KEY: OpenAI API key
+    """
     logger.info("Starting energy usage report generation")
     try:
         import argparse
 
         parser = argparse.ArgumentParser(description="Generate an energy usage report.")
-        parser.add_argument("csv_file", help="Path to the CSV file containing energy data.")
+        parser.add_argument("csv_file", help="Path to the CSV file containing energy data")
         args = parser.parse_args()
 
+        # Validate input file
+        input_path = validate_file_path(args.csv_file)
+        
+        # Set API key with better error handling
+        openai.api_key = get_api_key()
+
         # Load data
-        logger.info(f"Loading data from {args.csv_file}")
-        data = pd.read_csv(args.csv_file)
+        logger.info(f"Loading data from {input_path}")
+        data = pd.read_csv(input_path)
         logger.info("Data loaded successfully")
 
         # Generate graph
