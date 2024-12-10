@@ -244,22 +244,23 @@ def generate_insights(data):
         description = data.describe(include='all').to_dict()
         prompt = f"""
         The following is a dataset description: {description}
-        Please provide detailed insights into trends, outliers, and patterns. 
+        Please provide detailed insights into trends, outliers, and patterns with a headline.
         The dataset columns are: {', '.join(data.columns)}.
-        Each insight should be a separate block of text exactlyas follows with no newline in between:
+        Each insight should be a separate block of text structured as follows with no newline in between:
 
-        <b>headline</b>: insight;&nbsp
+        <b>headline</b>: insight.
         
         """
         response = openai.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a data analyst providing a list of insights derived from the dataset."},
+                {"role": "system", "content": "You are a data analyst providing a set of insights derived from the dataset."},
                 {"role": "user", "content": prompt}
             ]
         )
-        logger.info("Successfully generated insights")
-        return response.choices[0].message.content
+        insights = response.choices[0].message.content
+        logger.info(f"Successfully generated insights:\n{insights}")
+        return insights
     except Exception as e:
         logger.error(f"Error generating insights: {str(e)}")
         raise
@@ -282,21 +283,23 @@ def generate_recommendations(data):
     try:
         prompt = """
         Based on the following dataset trends, provide actionable recommendations to lower electricity and gas usage.
-        Each recommendation should be a separate block of text exactly as follows with no newline in between:
+        Each recommendation should come with a headline.
+        Each recommendation should be a separate block of text structured as follows with no newline in between:
        
-        <b>headline</b>: recommendation;&nbsp
+        <b>headline</b>: recommendation.
         
         """
         prompt += data.describe(include='all').to_string()
         response = openai.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an energy efficiency expert providing a list of recommendations."},
+                {"role": "system", "content": "You are an energy efficiency expert providing a set of recommendations."},
                 {"role": "user", "content": prompt}
             ]
         )
-        logger.info("Successfully generated recommendations")
-        return response.choices[0].message.content
+        recommendations = response.choices[0].message.content
+        logger.info(f"Successfully generated recommendations:\n{recommendations}")
+        return recommendations
     except Exception as e:
         logger.error(f"Error generating recommendations: {str(e)}")
         raise
