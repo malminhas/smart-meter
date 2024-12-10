@@ -1,10 +1,25 @@
 """
-Energy Oracle - EDF Energy Usage Analysis and Reporting Tool
+Energy Advisor - Energy Usage Analysis and Reporting Tool
 
-This script analyzes EDF Energy consumption data downloaded from the EDF Energy portal
-and generates an HTML report with insights and recommendations derived from that data 
-using OpenAI's GPT-4 API. It includes data visualization, AI-powered analysis, 
-and formatted output.
+Copyright (c) 2024 Mal Minhas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Security Considerations:
     - API Key: Stored in environment variable to prevent exposure
@@ -19,13 +34,32 @@ Dependencies:
     - openai: GPT-4 API integration
     - matplotlib: Graph generation
     - jinja2: HTML template rendering
+    - docopt: Command line argument parsing
 
-Usage:
-    python energy-oracle.py <path_to_csv_file>
+Version History:
+    0.2 - Current
+        - Switched to docopt for CLI
+        - Added verbose logging option
+        - Added version display
+    0.1 - Initial release
+        - Basic energy consumption analysis
+        - GPT-4 powered insights
+        - HTML report generation
+        - Graph visualization
 
-Author: Mal Minhas (sic)
-Date: 10.12.2024
+TODO:
+    - Add support for multiple data formats
+    - Implement rate limiting for API calls
+    - Add data export functionality
+    - Add year-over-year comparison
+    - Implement caching for API responses
+    - Add unit tests
+    - Add CI/CD pipeline
+    - Add configuration file support
 """
+
+VERSION = "0.2"
+AUTHOR = "Mal Minhas with AI helpers"
 
 import pandas as pd
 import openai
@@ -33,9 +67,12 @@ import matplotlib.pyplot as plt
 import os
 import webbrowser
 import logging
+from docopt import docopt
 from jinja2 import Template
 from pathlib import Path
 import html
+import sys
+from datetime import datetime
 
 # Security enhancement: Validate file paths
 def validate_file_path(file_path):
@@ -84,20 +121,6 @@ def sanitize_html_content(content):
         content = content.replace(f'&lt;/{tag}&gt;', f'</{tag}>')
     return content
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('energy_oracle.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Set your OpenAI API key
-openai.api_key = os.getenv("OPEN_API_KEY")
-
 # HTML template for the report
 html_template = """
 <!DOCTYPE html>
@@ -105,7 +128,7 @@ html_template = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Energy Usage Report</title>
+    <title>Energy Advisor Report</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -117,9 +140,19 @@ html_template = """
         }
         header {
             background-color: #0033a0;
-            color: white;
             padding: 20px 10px;
             text-align: center;
+        }
+        header h1 {
+            color: #FF4D1F;  /* EDF Orange */
+            margin: 0;
+            padding: 0;
+        }
+        .timestamp {
+            color: #FF4D1F;  /* EDF Orange */
+            text-align: center;
+            font-style: italic;
+            margin: 10px 0;
         }
         section {
             padding: 20px;
@@ -149,7 +182,8 @@ html_template = """
 </head>
 <body>
     <header>
-        <h1>Energy Usage Report</h1>
+        <h1>Energy Advisor Insights and Recommendations</h1>
+        <div class="timestamp">Generated on {{ timestamp }}</div>
     </header>
     <section>
         <h2>Key Insights</h2>
@@ -202,15 +236,16 @@ def generate_graph(data, output_path):
         fig, ax1 = plt.subplots(figsize=(12, 6))
         ax1.plot(data['Timestamp'], data['Electricity consumption (kWh)'], color='blue', marker='o', label='Electricity Consumption (kWh)')
         ax1.set_xlabel('Time')
-        ax1.set_ylabel('Electricity Consumption (kWh)', color='blue')
-        ax1.tick_params(axis='y', labelcolor='blue')
+        ax1.set_ylabel('Electricity Consumption (kWh)', color='green')
+        
+        ax1.tick_params(axis='y', labelcolor='green')
         ax1.set_xticks(data['Timestamp'])
         ax1.set_xticklabels(data['Timestamp'].dt.strftime('%b %y'), rotation=90)
 
         ax2 = ax1.twinx()
         ax2.plot(data['Timestamp'], data['Gas consumption (kWh)'], color='green', marker='x', label='Gas Consumption (kWh)')
-        ax2.set_ylabel('Gas Consumption (kWh)', color='green')
-        ax2.tick_params(axis='y', labelcolor='green')
+        ax2.set_ylabel('Gas Consumption (kWh)', color='blue')
+        ax2.tick_params(axis='y', labelcolor='blue')
 
         plt.title('Electricity and Gas Consumption Over Time')
         ax1.grid(axis='x', linestyle='--', alpha=0.7)
@@ -245,6 +280,8 @@ def generate_insights(data):
         prompt = f"""
         The following is a dataset description: {description}
         Please provide detailed insights into trends, outliers, and patterns with a headline.
+        The headline should be a single sentence that summarizes the insight.  
+        It should only contain words and no other characters.
         The dataset columns are: {', '.join(data.columns)}.
         Each insight should be a separate block of text structured as follows with no newline in between:
 
@@ -284,6 +321,8 @@ def generate_recommendations(data):
         prompt = """
         Based on the following dataset trends, provide actionable recommendations to lower electricity and gas usage.
         Each recommendation should come with a headline.
+        The headline should be a single sentence that summarizes the recommendation.  
+        It should only contain words and no other characters.
         Each recommendation should be a separate block of text structured as follows with no newline in between:
        
         <b>headline</b>: recommendation.
@@ -333,10 +372,18 @@ def generate_report(data, graph_path, insights, recommendations, output_path):
         insights = sanitize_html_content(insights)
         recommendations = sanitize_html_content(recommendations)
         
+        # Get current timestamp in human readable format
+        timestamp = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+        
         template = Template(html_template)
         insights_list = split_into_list(insights)
         recommendations_list = split_into_list(recommendations)
-        html_content = template.render(insights_list=insights_list, recommendations_list=recommendations_list)
+        html_content = template.render(
+            insights_list=insights_list,
+            recommendations_list=recommendations_list,
+            timestamp=timestamp
+        )
+        
         with open(output_path, 'w') as f:
             f.write(html_content)
         logger.info("HTML report generated successfully")
@@ -367,25 +414,51 @@ def get_api_key():
     return api_key
 
 def main():
-    """
-    Main execution function for the Energy Oracle tool.
-    
-    Command line arguments:
-        csv_file (str): Path to the CSV file containing energy data
-        
-    Environment variables required:
-        OPEN_API_KEY: OpenAI API key
-    """
-    logger.info("Starting energy usage report generation")
+    """Main execution function for the Energy Advisor tool."""
+    # Define help text separately
+    help_text = """
+Usage:
+    energy-advisor.py [-v] <csv_file>
+    energy-advisor.py (-h | --help)
+    energy-advisor.py (-V | --version)
+
+Options:
+    -h --help        Show this help message
+    -v --verbose     Enable verbose logging output
+    -V --version     Show version and author information
+
+Arguments:
+    csv_file         Path to CSV file containing energy data
+"""
     try:
-        import argparse
+        # Parse arguments using docopt with separate help text
+        arguments = docopt(help_text, version=f'Energy Advisor v{VERSION}\nAuthor: {AUTHOR}')
+        
+        # Configure logging based on verbose flag
+        if arguments['--verbose']:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format='%(asctime)s - %(levelname)s - %(message)s',
+                handlers=[
+                    logging.FileHandler('energy_oracle.log'),
+                    logging.StreamHandler()
+                ]
+            )
+        else:
+            # Suppress all logging unless verbose
+            logging.basicConfig(level=logging.WARNING)
+            
+        global logger
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("Starting energy usage report generation")
+        logger.debug(f"Arguments: {arguments}")
 
-        parser = argparse.ArgumentParser(description="Generate an energy usage report.")
-        parser.add_argument("csv_file", help="Path to the CSV file containing energy data")
-        args = parser.parse_args()
-
+        # Get CSV file path
+        csv_file = arguments['<csv_file>']
+        
         # Validate input file
-        input_path = validate_file_path(args.csv_file)
+        input_path = validate_file_path(csv_file)
         
         # Set API key with better error handling
         openai.api_key = get_api_key()
