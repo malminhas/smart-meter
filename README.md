@@ -1,5 +1,5 @@
 # smart-meter
-Domestic energy experiments involving EDF and smart meters
+Domestic energy experiments involving EDF and smart meters.  Note that in order to use these scripts, in addition to having an EDF account, you will need to have a valid OpenAI API key set in an `OPEN_API_KEY` environment variable.  You will also need to know your [MPAN number](https://en.wikipedia.org/wiki/Meter_Point_Administration_Number) and [IHD number](https://www.equiwatt.com/help/where-do-i-find-the-mac/guid/eui-number-on-my-in-home-display-ihd) and you will need to set environment variables for them both.
 
 * **[smart-meter-playbook](smart-meter-playbook.ipynb)** - a Jupyter notebook walking through how to access your smart meter data from the [DCC](https://www.smartdcc.co.uk/about-dcc/) using your supply point [MPAN number](https://en.wikipedia.org/wiki/Meter_Point_Administration_Number) and your [IHD number](https://www.equiwatt.com/help/where-do-i-find-the-mac/guid/eui-number-on-my-in-home-display-ihd).
  
