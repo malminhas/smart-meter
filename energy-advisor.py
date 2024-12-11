@@ -280,10 +280,6 @@ def generate_insights(data):
     """
     logger.info("Generating insights using GPT-4")
     try:
-        # Rate limiting consideration
-        MAX_RETRIES = 3
-        RETRY_DELAY = 1  # seconds
-        
         description = data.describe(include='all').to_dict()
         prompt = f"""
         The following is a dataset description: {description}
@@ -293,16 +289,17 @@ def generate_insights(data):
         It should only contain words and no other characters.
         Each insight should be a separate block of text structured as follows.
         Each headline should be in bold.  Each insight should not be in bold.
-        There should be no newline in the block of text.
-        Ensure that every number is supplied with the right unit
-        Costs should have a £ sign.
+        There should be no newline or carriage return in the block of text.
+        No block should begin with a number or bullet point.
+        Ensure that every number is supplied with the right unit.
+        Costs should have a £ sign preceding the number.
         kWh should have a kWh suffix.
         Numbers should be formatted as a number with 2 decimal places.
         Generate at least 5 insights.
         Desired format:
 
         <b>headline</b>: insight.
-        
+
         """
         response = openai.chat.completions.create(
             model="gpt-4",
@@ -313,6 +310,7 @@ def generate_insights(data):
         )
         insights = response.choices[0].message.content
         logger.info(f"Successfully generated insights:\n{insights}")
+        print(f"---- insights: ----\n{insights}")
         return insights
     except Exception as e:
         logger.error(f"Error generating insights: {str(e)}")
@@ -341,7 +339,8 @@ def generate_recommendations(data):
         It should only contain words and no other characters.
         Each recommendation should be a separate block of text structured as follows.
         Each headline should be in bold.  Each recommendation should not be in bold.
-        There should be no newline in the block of text.
+        There should be no newline or carriage return in the block of text.
+        No block should begin with a number or bullet point.
         Ensure that every number is supplied with the right unit
         Costs should have a £ sign.
         kWh should have a kWh suffix.
@@ -362,6 +361,8 @@ def generate_recommendations(data):
         )
         recommendations = response.choices[0].message.content
         logger.info(f"Successfully generated recommendations:\n{recommendations}")
+        print(recommendations)
+        print(f"---- recommendations:\n{recommendations} ----")
         return recommendations
     except Exception as e:
         logger.error(f"Error generating recommendations: {str(e)}")
