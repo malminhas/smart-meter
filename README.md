@@ -6,4 +6,7 @@ Domestic energy experiments involving EDF and smart meters
 * **[edf-bill-playbook](edf-bill-playbook.ipynb)** - a Jupyter notebook walking through how to process the energy data you can download from the EDF customer portal as shown below:
 <img width="653" alt="image" src="https://github.com/user-attachments/assets/5556df8f-387f-4b03-8007-ebbf8429c212">
 
-* **[energy-oracle.py](energy-oracle.py)** - a CLI entirely developed using ChatGPT Pro and Cursor which is able to autogenerate an insights report plus graph from that EDF csv. The report looks like this (costs obfuscated): ![image](https://github.com/user-attachments/assets/78f31ff3-397f-4089-b9ff-829e2ac28a64)
+* **[energy-advisor.py](energy-advisor.py)** - a command line agent entirely developed using ChatGPT Pro and Cursor which is able to autogenerate an HTML insights report plus graph from that EDF csv. The report looks like this:
+<img width="304" alt="image" src="https://github.com/user-attachments/assets/accb45ce-ce44-4ed1-ab5c-c3649018ca3d">
+
+
