@@ -142,6 +142,7 @@ html_template = """
             background-color: #0033a0;
             padding: 20px 10px;
             text-align: center;
+            width: 100%;
         }
         header h1 {
             color: #FF4D1F;  /* EDF Orange */
@@ -149,15 +150,16 @@ html_template = """
             padding: 0;
         }
         .timestamp {
-            color: #FF4D1F;  /* EDF Orange */
+            color: #FF4D1F;
             text-align: center;
             font-style: italic;
             margin: 10px 0;
         }
         section {
-            padding: 20px;
+            padding: 30px;
             margin: 20px auto;
-            max-width: 800px;
+            width: 90%;
+            max-width: 1400px;
             background: white;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
@@ -168,12 +170,18 @@ html_template = """
             max-width: 100%;
             height: auto;
             margin: 10px 0;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
         }
         ol {
             padding-left: 20px;
+            width: 95%;
+            margin: 0 auto;
         }
         li {
             margin-bottom: 10px;
+            max-width: none;
         }
         strong {
             font-weight: bold;
@@ -280,10 +288,18 @@ def generate_insights(data):
         prompt = f"""
         The following is a dataset description: {description}
         Please provide detailed insights into trends, outliers, and patterns with a headline.
-        The headline should be a single sentence that summarizes the insight.  
+        Each insight should come with a headline.
+        The headline should be a single sentence that summarizes the insight. 
         It should only contain words and no other characters.
-        The dataset columns are: {', '.join(data.columns)}.
-        Each insight should be a separate block of text structured as follows with no newline in between:
+        Each insight should be a separate block of text structured as follows.
+        Each headline should be in bold.  Each insight should not be in bold.
+        There should be no newline in the block of text.
+        Ensure that every number is supplied with the right unit
+        Costs should have a £ sign.
+        kWh should have a kWh suffix.
+        Numbers should be formatted as a number with 2 decimal places.
+        Generate at least 5 insights.
+        Desired format:
 
         <b>headline</b>: insight.
         
@@ -323,7 +339,15 @@ def generate_recommendations(data):
         Each recommendation should come with a headline.
         The headline should be a single sentence that summarizes the recommendation.  
         It should only contain words and no other characters.
-        Each recommendation should be a separate block of text structured as follows with no newline in between:
+        Each recommendation should be a separate block of text structured as follows.
+        Each headline should be in bold.  Each recommendation should not be in bold.
+        There should be no newline in the block of text.
+        Ensure that every number is supplied with the right unit
+        Costs should have a £ sign.
+        kWh should have a kWh suffix.
+        Numbers should be formatted as a number with 2 decimal places.
+        Generate at least 10 recommendations.
+        Desired format:
        
         <b>headline</b>: recommendation.
         
