@@ -38,6 +38,7 @@ Dependencies:
 
 Version History:
     0.3 - Current (December 13, 2024)
+        - Restructured prompt for insights and recommendations
         - Added support for multiple LLM models (GPT-4, GPT-3.5-turbo, Ollama)
         - Improved output formatting for insights and recommendations
         - Added model selection via command line
@@ -327,60 +328,43 @@ def generate_insights(data, model):
         description = data.describe(include='all').to_dict()
         prompt = f"""
         The following is a dataset description: {description}
-        Please provide detailed insights into trends, outliers, and patterns with a headline.
-        Each insight should come with a headline.
-        The headline should be a single sentence that summarizes the insight. 
-        It should only contain words and no other characters.
-        Each insight should be a separate block of text structured as follows.
-        Each headline should be in bold.  Each insight should not be in bold.
-        There should be no newline or carriage return in the block of text.
-        No block should begin with a number or bullet point.
+        Please provide detailed insights into trends, outliers, and patterns.
+        Return the response as a JSON list of dictionaries.
+        Each dictionary should have two keys: "heading" and "insight".
+        The heading should be a single sentence that summarizes the insight.
+        The insight should provide a paragraph of detailed analysis.
+        No markdown or HTML formatting should be used.
         Ensure that every number is supplied with the right unit.
         Costs should have a £ sign preceding the number.
         kWh should have a kWh suffix.
         Numbers should be formatted as a number with 2 decimal places.
-        Generate your five or more top insights.
-        Desired format:
-
-        **headline**: insight.
-
+        Generate at least 5 insights.
+        
+        Example format:
+        [
+            {{"heading": "Peak Usage Occurs in Winter Months", "insight": "Analysis shows highest consumption of 450.00 kWh in December"}},
+            {{"heading": "Another Insight", "insight": "Another detailed analysis"}}
+        ]
         """
         response = generate_model_response(model, [
-            {"role": "system", "content": "You are a data analyst providing a set of insights derived from the dataset."},
+            {"role": "system", "content": "You are a data analyst providing a set of insights derived from the dataset. Return only valid JSON."},
             {"role": "user", "content": prompt}
         ])
-        insights = clean_model_output(response)
-        logger.info(f"Successfully generated insights:\n{insights}")
-        print(f"---- insights: ----\n{insights}")
-        return insights
+        
+        # Parse JSON response
+        insights_list = json.loads(response)
+        
+        # Convert to HTML format
+        insights_html = ""
+        for item in insights_list:
+            insights_html += f'<b>{item["heading"]}</b>: {item["insight"]}\n\n'
+       
+        print(f"Insights:\n{insights_html}")
+        logger.info(f"Successfully generated insights:\n{insights_html}")
+        return insights_html
     except Exception as e:
         logger.error(f"Error generating insights: {str(e)}")
         raise
-
-def clean_model_output(text):
-    """
-    Clean up model output by removing newlines and converting markdown to HTML.
-    
-    Args:
-        text (str): Raw model output
-        
-    Returns:
-        str: Cleaned text with HTML formatting
-    """
-    # Remove newlines
-    text = text.replace('\n', ' ')
-    
-    # Convert markdown bold to HTML bold
-    text = text.replace('**', '<b>', 1)
-    while '**' in text:
-        text = text.replace('**', '</b>:', 1)
-        if '**' in text:
-            text = text.replace('**', '<b>', 1)
-
-    text = text.replace('<b>', '\n\n<b>')
-    text = text.replace('::', ':')
-
-    return text
 
 def generate_recommendations(data, model):
     """
@@ -401,38 +385,41 @@ def generate_recommendations(data, model):
     try:
         prompt = """
         Based on the following dataset trends, provide actionable recommendations to lower electricity and gas usage.
-        Each recommendation should come with a headline.
-        The headline should be a single sentence that summarizes the recommendation.  
-        It should only contain words and no other characters.
-        Each recommendation should be a separate block of text.
-        Each recommendation should be a single paragraph which avoids jargon.
-        Each recommendation should be easy to understand for a layperson.
-        Each recommendation should contain helpful information and a clear call to action.
-        The recommendation should be structured as follows:
-        Each headline should be in bold.  
-        The recommendation text itself should not be in bold.
-        There should be no newline in the headline or the recommendation text.
-        No block should begin with a number or bullet point.
-        Ensure that every number is supplied with the right unit
-        Costs should have a £ sign.
+        Return the response as a JSON list of dictionaries.
+        Each dictionary should have two keys: "heading" and "recommendation".
+        The heading should be a single sentence that summarizes the recommendation.
+        The recommendation should provide a paragraph of rationale and detailed actionable advice.
+        A specific call to action should be included at the end of each recommendation.
+        No markdown or HTML formatting should be used.
+        Ensure that every number is supplied with the right unit.
+        Costs should have a £ sign preceding the number.
         kWh should have a kWh suffix.
         Numbers should be formatted as a number with 2 decimal places.
-        Generate your top ten recommendations.
-        Desired format:
-       
-        **headline**: recommendation.
+        Generate at least 10 recommendations.
         
+        Example format:
+        [
+            {{"heading": "Install LED Lighting", "recommendation": "Replace all traditional bulbs with LED alternatives to save 100.00 kWh annually"}},
+            {{"heading": "Another Recommendation", "recommendation": "Another detailed recommendation"}}
+        ]
         """
         prompt += data.describe(include='all').to_string()
         response = generate_model_response(model, [
-            {"role": "system", "content": "You are an energy efficiency expert providing a set of recommendations."},
+            {"role": "system", "content": "You are an energy efficiency expert providing recommendations. Return only valid JSON."},
             {"role": "user", "content": prompt}
         ])
-        recommendations = clean_model_output(response)
-        logger.info(f"Successfully generated recommendations:\n{recommendations}")
-        print(recommendations)
-        print(f"---- recommendations:\n{recommendations} ----")
-        return recommendations
+        
+        # Parse JSON response
+        recommendations_list = json.loads(response)
+        
+        # Convert to HTML format
+        recommendations_html = ""
+        for item in recommendations_list:
+            recommendations_html += f'<b>{item["heading"]}</b>: {item["recommendation"]}\n\n'
+            
+        logger.info(f"Successfully generated recommendations:\n{recommendations_html}")
+        print(f"Recommendations:\n{recommendations_html}")
+        return recommendations_html
     except Exception as e:
         logger.error(f"Error generating recommendations: {str(e)}")
         raise
