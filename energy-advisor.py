@@ -66,28 +66,29 @@ TODO:
 VERSION = "0.3"
 AUTHOR = "Mal Minhas with AI helpers"
 
-import pandas as pd
-import openai
-import matplotlib.pyplot as plt
+import pandas as pd # type: ignore
+import openai # type: ignore
+import matplotlib.pyplot as plt # type: ignore
 import os
 import webbrowser
 import logging
-from docopt import docopt
-from jinja2 import Template
+from docopt import docopt # type: ignore
+from jinja2 import Template # type: ignore
 from pathlib import Path
 import html
 import sys
 from datetime import datetime
-import requests
+import requests # type: ignore
 import json
 
 # Security enhancement: Validate file paths
-def validate_file_path(file_path):
+def validate_file_path(file_path, must_exist=True):
     """
     Validate and sanitize file paths to prevent directory traversal attacks.
     
     Args:
         file_path (str): The file path to validate
+        must_exist (bool): Whether the file must exist (default: True)
         
     Returns:
         Path: A sanitized Path object
@@ -97,7 +98,7 @@ def validate_file_path(file_path):
     """
     try:
         path = Path(file_path).resolve()
-        if not path.exists():
+        if must_exist and not path.exists():
             raise ValueError(f"File does not exist: {file_path}")
         # Ensure the path doesn't contain suspicious patterns
         if any(part.startswith('.') for part in path.parts):
@@ -239,7 +240,7 @@ def generate_graph(data, output_path):
     logger.info("Generating energy consumption graph")
     try:
         # Validate output path
-        output_path = validate_file_path(output_path)
+        output_path = validate_file_path(output_path, must_exist=False)
         
         # Validate required columns
         required_columns = ['Timestamp', 'Electricity consumption (kWh)', 'Gas consumption (kWh)']
@@ -332,7 +333,7 @@ def generate_insights(data, model):
         Return the response as a JSON list of dictionaries.
         Each dictionary should have two keys: "heading" and "insight".
         The heading should be a single sentence that summarizes the insight.
-        The insight should provide a paragraph of detailed analysis.
+        The insight should provide a detailed paragraph of analysis of the insight.
         No markdown or HTML formatting should be used.
         Ensure that every number is supplied with the right unit.
         Costs should have a £ sign preceding the number.
@@ -388,7 +389,7 @@ def generate_recommendations(data, model):
         Return the response as a JSON list of dictionaries.
         Each dictionary should have two keys: "heading" and "recommendation".
         The heading should be a single sentence that summarizes the recommendation.
-        The recommendation should provide a paragraph of rationale and detailed actionable advice.
+        The recommendation should provide a paragraph of detail and actionable advice.
         A specific call to action should be included at the end of each recommendation.
         No markdown or HTML formatting should be used.
         Ensure that every number is supplied with the right unit.
@@ -446,8 +447,8 @@ def generate_report(data, graph_path, insights, recommendations, output_path):
     logger.info(f"Generating HTML report to {output_path}")
     try:
         # Validate paths
-        graph_path = validate_file_path(graph_path)
-        output_path = validate_file_path(output_path)
+        graph_path = validate_file_path(graph_path, must_exist=True)
+        output_path = validate_file_path(output_path, must_exist=False)
         
         # Sanitize content
         insights = sanitize_html_content(insights)
