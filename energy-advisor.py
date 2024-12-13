@@ -37,15 +37,15 @@ Dependencies:
     - docopt: Command line argument parsing
 
 Version History:
-    0.3 - Current
+    0.3 - Current (December 13, 2024)
         - Added support for multiple LLM models (GPT-4, GPT-3.5-turbo, Ollama)
         - Improved output formatting for insights and recommendations
         - Added model selection via command line
-    0.2 - Previous
+    0.2 - Previous (December 12, 2024)
         - Switched to docopt for CLI
         - Added verbose logging option
         - Added version display
-    0.1 - Initial release
+    0.1 - Initial release (December 11, 2024)
         - Basic energy consumption analysis
         - GPT-4 powered insights
         - HTML report generation
@@ -339,7 +339,7 @@ def generate_insights(data, model):
         Costs should have a £ sign preceding the number.
         kWh should have a kWh suffix.
         Numbers should be formatted as a number with 2 decimal places.
-        Generate at least 5 insights.
+        Generate your five or more top insights.
         Desired format:
 
         **headline**: insight.
@@ -378,6 +378,7 @@ def clean_model_output(text):
             text = text.replace('**', '<b>', 1)
 
     text = text.replace('<b>', '\n\n<b>')
+    text = text.replace('::', ':')
 
     return text
 
@@ -403,15 +404,20 @@ def generate_recommendations(data, model):
         Each recommendation should come with a headline.
         The headline should be a single sentence that summarizes the recommendation.  
         It should only contain words and no other characters.
-        Each recommendation should be a separate block of text structured as follows.
-        Each headline should be in bold.  Each recommendation should not be in bold.
-        There should be no newline or carriage return in the block of text.
+        Each recommendation should be a separate block of text.
+        Each recommendation should be a single paragraph which avoids jargon.
+        Each recommendation should be easy to understand for a layperson.
+        Each recommendation should contain helpful information and a clear call to action.
+        The recommendation should be structured as follows:
+        Each headline should be in bold.  
+        The recommendation text itself should not be in bold.
+        There should be no newline in the headline or the recommendation text.
         No block should begin with a number or bullet point.
         Ensure that every number is supplied with the right unit
         Costs should have a £ sign.
         kWh should have a kWh suffix.
         Numbers should be formatted as a number with 2 decimal places.
-        Generate at least 10 recommendations.
+        Generate your top ten recommendations.
         Desired format:
        
         **headline**: recommendation.
