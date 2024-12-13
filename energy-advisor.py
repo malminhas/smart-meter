@@ -37,16 +37,21 @@ Dependencies:
     - docopt: Command line argument parsing
 
 Version History:
-    0.3 - Current (December 13, 2024)
-        - Restructured prompt for insights and recommendations
+    0.4 - Current (December 13, 2024)
+        - Added type hint support
+        Refactored JSON handling in prompts
+        - Added personalization via context file input (-i option)
+        - Improved output file handling
+        - Structured JSON responses for insights and recommendations
+    0.3 - (December 12, 2024)
         - Added support for multiple LLM models (GPT-4, GPT-3.5-turbo, Ollama)
         - Improved output formatting for insights and recommendations
         - Added model selection via command line
-    0.2 - Previous (December 12, 2024)
+    0.2 - (December 11, 2024)
         - Switched to docopt for CLI
         - Added verbose logging option
         - Added version display
-    0.1 - Initial release (December 11, 2024)
+    0.1 - Initial release (December 10, 2024)
         - Basic energy consumption analysis
         - GPT-4 powered insights
         - HTML report generation
@@ -63,8 +68,9 @@ TODO:
     - Add configuration file support
 """
 
-VERSION = "0.3"
-AUTHOR = "Mal Minhas with AI helpers"
+VERSION = "0.4"
+AUTHOR = "Mal Minhas with a lot of help from AI"
+RELEASE_DATE = "December 13, 2024"
 
 import pandas as pd # type: ignore
 import openai # type: ignore
@@ -75,23 +81,23 @@ import logging
 from docopt import docopt # type: ignore
 from jinja2 import Template # type: ignore
 from pathlib import Path
-import html
-import sys
-from datetime import datetime
 import requests # type: ignore
 import json
+import html
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional, Union, Any
 
 # Security enhancement: Validate file paths
-def validate_file_path(file_path, must_exist=True):
+def validate_file_path(file_path: Union[str, Path], must_exist: bool = True) -> Path:
     """
     Validate and sanitize file paths to prevent directory traversal attacks.
     
     Args:
-        file_path (str): The file path to validate
-        must_exist (bool): Whether the file must exist (default: True)
+        file_path: The file path to validate
+        must_exist: Whether the file must exist
         
     Returns:
-        Path: A sanitized Path object
+        A sanitized Path object
         
     Raises:
         ValueError: If the path is invalid or suspicious
@@ -109,15 +115,15 @@ def validate_file_path(file_path, must_exist=True):
         raise ValueError(f"Invalid file path: {str(e)}")
 
 # Security enhancement: Sanitize HTML content
-def sanitize_html_content(content):
+def sanitize_html_content(content: str) -> str:
     """
     Sanitize HTML content to prevent XSS attacks.
     
     Args:
-        content (str): Raw HTML content
+        content: Raw HTML content
         
     Returns:
-        str: Sanitized HTML content
+        Sanitized HTML content
     """
     # Allow only specific HTML tags
     allowed_tags = ['b', 'i', 'u', 'p', 'br', 'li', 'ul', 'ol']
@@ -153,7 +159,7 @@ html_template = """
             width: 100%;
         }
         header h1 {
-            color: #FF4D1F;  /* EDF Orange */
+            color: #FF4D1F;
             margin: 0;
             padding: 0;
         }
@@ -162,6 +168,12 @@ html_template = """
             text-align: center;
             font-style: italic;
             margin: 10px 0;
+        }
+        .cost-info {
+            color: #FF4D1F;
+            text-align: center;
+            font-size: 0.9em;
+            margin: 5px 0;
         }
         section {
             padding: 30px;
@@ -200,6 +212,7 @@ html_template = """
     <header>
         <h1>Energy Advisor Insights and Recommendations</h1>
         <div class="timestamp">Generated on {{ timestamp }}</div>
+        <div class="cost-info">Analysis cost: {{ total_cost }}</div>
     </header>
     <section>
         <h2>Key Insights</h2>
@@ -225,13 +238,13 @@ html_template = """
 </html>
 """
 
-def generate_graph(data, output_path):
+def generate_graph(data: pd.DataFrame, output_path: Union[str, Path]) -> None:
     """
     Generate energy consumption visualization graph.
     
     Args:
-        data (pandas.DataFrame): Energy consumption data
-        output_path (str): Path to save the generated graph
+        data: Energy consumption data
+        output_path: Path to save the generated graph
         
     Raises:
         ValueError: If data format is invalid
@@ -250,7 +263,8 @@ def generate_graph(data, output_path):
         data['Timestamp'] = pd.to_datetime(data['Timestamp'], format='%m/%Y')
         
         fig, ax1 = plt.subplots(figsize=(12, 6))
-        ax1.plot(data['Timestamp'], data['Electricity consumption (kWh)'], color='blue', marker='o', label='Electricity Consumption (kWh)')
+        ax1.plot(data['Timestamp'], data['Electricity consumption (kWh)'], 
+                color='blue', marker='o', label='Electricity Consumption (kWh)')
         ax1.set_xlabel('Time')
         ax1.set_ylabel('Electricity Consumption (kWh)', color='green')
         
@@ -259,7 +273,8 @@ def generate_graph(data, output_path):
         ax1.set_xticklabels(data['Timestamp'].dt.strftime('%b %y'), rotation=90)
 
         ax2 = ax1.twinx()
-        ax2.plot(data['Timestamp'], data['Gas consumption (kWh)'], color='green', marker='x', label='Gas Consumption (kWh)')
+        ax2.plot(data['Timestamp'], data['Gas consumption (kWh)'], 
+                color='green', marker='x', label='Gas Consumption (kWh)')
         ax2.set_ylabel('Gas Consumption (kWh)', color='blue')
         ax2.tick_params(axis='y', labelcolor='blue')
 
@@ -272,111 +287,215 @@ def generate_graph(data, output_path):
         logger.error(f"Error generating graph: {str(e)}")
         raise
 
-def generate_model_response(model, messages):
+def generate_model_response(model: str, messages: List[Dict[str, str]]) -> str:
     """
     Generate response using either OpenAI or Ollama models.
     
     Args:
-        model (str): Model name (e.g., 'gpt-4' or 'llama2')
-        messages (list): List of message dictionaries
+        model: Model name (e.g., 'gpt-4' or 'llama2')
+        messages: List of message dictionaries
         
     Returns:
-        str: Model response content
+        Model response content
         
     Raises:
         Exception: If API call fails
     """
-    if model.startswith('gpt-'):
-        response = openai.chat.completions.create(
-            model=model,
-            messages=messages
-        )
-        return response.choices[0].message.content
-    else:
-        # Ollama API endpoint
-        url = f"http://localhost:11434/api/chat"
-        
-        # Format messages for Ollama
-        data = {
-            "model": model,
-            "messages": messages,
-            "stream": False
-        }
-        
-        response = requests.post(url, json=data)
-        if response.status_code == 200:
-            return response.json()['message']['content']
+    try:
+        if model.startswith('gpt-'):
+            response = openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                #response_format={"type": "json_object"}  # Request JSON response
+            )
+            return response.choices[0].message.content
         else:
-            raise Exception(f"Ollama API error: {response.text}")
+            # Ollama API endpoint
+            url = f"http://localhost:11434/api/chat"
+            
+            # Format messages for Ollama
+            data = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "format": "json"  # Request JSON response
+            }
+            
+            response = requests.post(url, json=data)
+            if response.status_code == 200:
+                content = response.json()['message']['content']
+                # Try to parse and re-serialize to ensure valid JSON
+                try:
+                    parsed = json.loads(content)
+                    return json.dumps(parsed)
+                except json.JSONDecodeError:
+                    # If the response isn't valid JSON, try to extract JSON part
+                    import re
+                    json_match = re.search(r'\[[\s\S]*\]|\{[\s\S]*\}', content)
+                    if json_match:
+                        return json_match.group(0)
+                    raise Exception("Could not extract valid JSON from response")
+            else:
+                raise Exception(f"Ollama API error: {response.text}")
+    except Exception as e:
+        logger.error(f"Error in model response: {str(e)}")
+        raise
 
-def generate_insights(data, model):
+def read_user_context(context_file: Union[str, Path]) -> str:
+    """
+    Read user context from a text file.
+    
+    Args:
+        context_file: Path to the context file
+        
+    Returns:
+        User context as a string
+        
+    Raises:
+        ValueError: If file cannot be read
+    """
+    try:
+        path = validate_file_path(context_file, must_exist=True)
+        with open(path, 'r') as f:
+            return f.read().strip()
+    except Exception as e:
+        logger.error(f"Error reading context file: {str(e)}")
+        raise
+
+def calculate_costs(model: str, input_tokens: int, output_tokens: int) -> float:
+    """
+    Calculate the cost of LLM inference based on model and token counts.
+    
+    Args:
+        model: Model name (e.g., 'gpt-4', 'gpt-3.5-turbo')
+        input_tokens: Number of input tokens
+        output_tokens: Number of output tokens
+        
+    Returns:
+        Cost in USD
+    """
+    costs: Dict[str, Dict[str, float]] = {
+        'gpt-4': {'input': 0.03, 'output': 0.06},
+        'gpt-3.5-turbo': {'input': 0.001, 'output': 0.002}
+    }
+    
+    if model not in costs:
+        return 0.0  # No cost for local models like Ollama
+        
+    model_costs = costs[model]
+    input_cost = (input_tokens / 1000) * model_costs['input']
+    output_cost = (output_tokens / 1000) * model_costs['output']
+    
+    return input_cost + output_cost
+
+def format_costs(cost: float) -> str:
+    """
+    Format the cost for display.
+    
+    Args:
+        cost: Cost in USD
+        
+    Returns:
+        Formatted cost string
+    """
+    if cost == 0:
+        return "No cost (using local model)"
+    return f"${cost:.4f}"
+
+def generate_insights(data: pd.DataFrame, model: str, user_context: Optional[str] = None) -> Tuple[str, float]:
     """
     Generate insights using OpenAI GPT-4.
     
     Args:
-        data (pandas.DataFrame): Energy consumption data
-        model (str): Model name (e.g., 'gpt-4' or 'llama2')
+        data: Energy consumption data
+        model: Model name (e.g., 'gpt-4' or 'llama2')
+        user_context: Additional user context for personalization
         
     Returns:
-        str: HTML-formatted insights
+        Tuple of (HTML-formatted insights, cost of inference)
         
     Raises:
         openai.error.OpenAIError: If API call fails
         ValueError: If data format is invalid
     """
-    logger.info("Generating insights using GPT-4")
+    logger.info("Generating insights using LLM")
     try:
-        description = data.describe(include='all').to_dict()
+        description = data.describe(include='all').to_string()
+        context_str = f"\nAdditional context about the user and their situation: {user_context}" if user_context else ""
         prompt = f"""
-        The following is a dataset description: {description}
+        The following is a dataset description: {description}{context_str}.
         Please provide detailed insights into trends, outliers, and patterns.
-        Return the response as a JSON list of dictionaries.
-        Each dictionary should have two keys: "heading" and "insight".
-        The heading should be a single sentence that summarizes the insight.
-        The insight should provide a detailed paragraph of analysis of the insight.
-        No markdown or HTML formatting should be used.
-        Ensure that every number is supplied with the right unit.
-        Costs should have a £ sign preceding the number.
-        kWh should have a kWh suffix.
-        Numbers should be formatted as a number with 2 decimal places.
-        Generate at least 5 insights.
+        You must return a JSON array containing exactly 5 insights.
+        Each insight must be a JSON object with exactly two fields:
+        1. "heading": A single sentence summarizing the insight
+        2. "insight": A detailed analysis of the insight
         
-        Example format:
-        [
-            {{"heading": "Peak Usage Occurs in Winter Months", "insight": "Analysis shows highest consumption of 450.00 kWh in December"}},
-            {{"heading": "Another Insight", "insight": "Another detailed analysis"}}
-        ]
+        Requirements:
+        - No markdown or HTML formatting
+        - Every number must have a unit (£ for costs, kWh for energy)
+        - Numbers must have 2 decimal places
+        - Make insights personalized if context is provided
+        
+        Example of required JSON format:
+        {{
+            "insights": [
+                {{
+                    "heading": "Peak Usage Occurs in Winter Months",
+                    "insight": "Analysis shows highest consumption of 450.00 kWh in December"
+                }},
+                {{
+                    "heading": "Another Insight",
+                    "insight": "Another detailed analysis"
+                }}
+            ]
+        }}
         """
+        
+        print(f"========== Insights Prompt ({len(prompt)} tokens) ==========\n{prompt}")
+        # Estimate input tokens (rough approximation)
+        input_tokens = len(prompt.split()) + len(str(description).split())
+        if user_context:
+            input_tokens += len(user_context.split())
+            
         response = generate_model_response(model, [
-            {"role": "system", "content": "You are a data analyst providing a set of insights derived from the dataset. Return only valid JSON."},
+            {"role": "system", "content": "You are a data analyst. Return only valid JSON with exactly 5 insights."},
             {"role": "user", "content": prompt}
         ])
         
+        print(f"========== Insights Response ({len(response)} tokens) ==========\n{response}")
         # Parse JSON response
-        insights_list = json.loads(response)
+        response_json = json.loads(response)
+        insights_list = response_json.get('insights', [])
+        
+        # Estimate output tokens
+        output_tokens = len(response.split())
+        
+        # Calculate cost
+        cost = calculate_costs(model, input_tokens, output_tokens)
+        logger.info(f"Insight generation cost: {format_costs(cost)}")
         
         # Convert to HTML format
         insights_html = ""
         for item in insights_list:
             insights_html += f'<b>{item["heading"]}</b>: {item["insight"]}\n\n'
-       
-        print(f"Insights:\n{insights_html}")
+            
         logger.info(f"Successfully generated insights:\n{insights_html}")
-        return insights_html
+        return insights_html, cost
     except Exception as e:
         logger.error(f"Error generating insights: {str(e)}")
         raise
 
-def generate_recommendations(data, model):
+def generate_recommendations(data: pd.DataFrame, model: str, user_context: Optional[str] = None) -> Tuple[str, float]:
     """
     Generate energy usage recommendations using OpenAI GPT-4.
     
     Args:
-        data (pandas.DataFrame): Energy consumption data
-        model (str): Model name (e.g., 'gpt-4' or 'llama2')
+        data: Energy consumption data
+        model: Model name (e.g., 'gpt-4' or 'llama2')
+        user_context: Additional user context for personalization
         
     Returns:
-        str: HTML-formatted recommendations
+        Tuple of (HTML-formatted recommendations, cost of inference)
         
     Raises:
         openai.error.OpenAIError: If API call fails
@@ -384,34 +503,58 @@ def generate_recommendations(data, model):
     """
     logger.info("Generating recommendations using GPT-4")
     try:
-        prompt = """
-        Based on the following dataset trends, provide actionable recommendations to lower electricity and gas usage.
-        Return the response as a JSON list of dictionaries.
-        Each dictionary should have two keys: "heading" and "recommendation".
-        The heading should be a single sentence that summarizes the recommendation.
-        The recommendation should provide a paragraph of detail and actionable advice.
-        A specific call to action should be included at the end of each recommendation.
-        No markdown or HTML formatting should be used.
-        Ensure that every number is supplied with the right unit.
-        Costs should have a £ sign preceding the number.
-        kWh should have a kWh suffix.
-        Numbers should be formatted as a number with 2 decimal places.
-        Generate at least 10 recommendations.
+        context_str = f"\nAdditional context about the user and their situation: {user_context}" if user_context else ""
+        prompt = f"""
+        Based on the following dataset trends, provide actionable recommendations to lower electricity and gas usage.{context_str}
+        You must return a JSON array containing exactly 10 recommendations.
+        Each recommendation must be a JSON object with exactly two fields:
+        1. "heading": A single sentence summarizing the recommendation
+        2. "recommendation": Detailed actionable advice
         
-        Example format:
-        [
-            {{"heading": "Install LED Lighting", "recommendation": "Replace all traditional bulbs with LED alternatives to save 100.00 kWh annually"}},
-            {{"heading": "Another Recommendation", "recommendation": "Another detailed recommendation"}}
-        ]
+        Requirements:
+        - No markdown or HTML formatting
+        - Every number must have a unit (£ for costs, kWh for energy)
+        - Numbers must have 2 decimal places
+        - Make recommendations personalized if context is provided
+        
+        Example of required JSON format:
+        {{
+            "recommendations": [
+                {{
+                    "heading": "Install LED Lighting",
+                    "recommendation": "Replace all traditional bulbs with LED alternatives to save 100.00 kWh annually"
+                }},
+                {{
+                    "heading": "Another Recommendation",
+                    "recommendation": "Another detailed recommendation"
+                }}
+            ]
+        }}
         """
         prompt += data.describe(include='all').to_string()
+        print(f"========== Recommendations Prompt ({len(prompt)} tokens) ==========\n{prompt}")
+
+        # Estimate input tokens (rough approximation)
+        input_tokens = len(prompt.split())
+        if user_context:
+            input_tokens += len(user_context.split())
+            
         response = generate_model_response(model, [
-            {"role": "system", "content": "You are an energy efficiency expert providing recommendations. Return only valid JSON."},
+            {"role": "system", "content": "You are an energy efficiency expert. Return only valid JSON with exactly 10 recommendations."},
             {"role": "user", "content": prompt}
         ])
         
+        print(f"========== Recommendations Response ({len(response)} tokens) ==========\n{response}")
         # Parse JSON response
-        recommendations_list = json.loads(response)
+        response_json = json.loads(response)
+        recommendations_list = response_json.get('recommendations', [])
+        
+        # Estimate output tokens
+        output_tokens = len(response.split())
+        
+        # Calculate cost
+        cost = calculate_costs(model, input_tokens, output_tokens)
+        logger.info(f"Recommendation generation cost: {format_costs(cost)}")
         
         # Convert to HTML format
         recommendations_html = ""
@@ -419,26 +562,36 @@ def generate_recommendations(data, model):
             recommendations_html += f'<b>{item["heading"]}</b>: {item["recommendation"]}\n\n'
             
         logger.info(f"Successfully generated recommendations:\n{recommendations_html}")
-        print(f"Recommendations:\n{recommendations_html}")
-        return recommendations_html
+        return recommendations_html, cost
     except Exception as e:
         logger.error(f"Error generating recommendations: {str(e)}")
         raise
 
-def split_into_list(text):
-    """Split numbered insights/recommendations into a list."""
+def split_into_list(text: str) -> List[str]:
+    """
+    Split numbered insights/recommendations into a list.
+    
+    Args:
+        text: Text to split
+        
+    Returns:
+        List of split text items
+    """
     return [line.strip() for line in text.split("\n") if line.strip()]
 
-def generate_report(data, graph_path, insights, recommendations, output_path):
+def generate_report(data: pd.DataFrame, graph_path: Union[str, Path], 
+                   insights: str, recommendations: str, 
+                   output_path: Union[str, Path], total_cost: float = 0.0) -> None:
     """
     Generate HTML report with insights and recommendations.
     
     Args:
-        data (pandas.DataFrame): Energy consumption data
-        graph_path (str): Path to the generated graph
-        insights (str): HTML-formatted insights
-        recommendations (str): HTML-formatted recommendations
-        output_path (str): Path to save the HTML report
+        data: Energy consumption data
+        graph_path: Path to the generated graph
+        insights: HTML-formatted insights
+        recommendations: HTML-formatted recommendations
+        output_path: Path to save the HTML report
+        total_cost: Total cost of LLM inference
         
     Raises:
         IOError: If unable to write the report
@@ -463,7 +616,8 @@ def generate_report(data, graph_path, insights, recommendations, output_path):
         html_content = template.render(
             insights_list=insights_list,
             recommendations_list=recommendations_list,
-            timestamp=timestamp
+            timestamp=timestamp,
+            total_cost=format_costs(total_cost)
         )
         
         with open(output_path, 'w') as f:
@@ -473,12 +627,12 @@ def generate_report(data, graph_path, insights, recommendations, output_path):
         logger.error(f"Error generating HTML report: {str(e)}")
         raise
 
-def get_api_key():
+def get_api_key() -> str:
     """
     Get OpenAI API key from environment variables with fallback options.
     
     Returns:
-        str: OpenAI API key
+        OpenAI API key
         
     Raises:
         ValueError: If no API key is found
@@ -495,12 +649,12 @@ def get_api_key():
     
     return api_key
 
-def main():
+def main() -> None:
     """Main execution function for the Energy Advisor tool."""
     # Define help text separately
     help_text = """
 Usage:
-    energy-advisor.py [-v] [-m MODEL] <csv_file>
+    energy-advisor.py [-v] [-m MODEL] [-i CONTEXT] <csv_file>
     energy-advisor.py (-h | --help)
     energy-advisor.py (-V | --version)
 
@@ -509,14 +663,15 @@ Options:
     -v --verbose        Enable verbose logging output
     -V --version        Show version and author information
     -m --model MODEL    Model to use for analysis [default: gpt-4]
-                        Can be 'gpt-4', 'gpt-3.5-turbo', 'llama3.2', etc.
+                        Can be 'gpt-4', 'gpt-3.5-turbo', 'llama2', etc.
+    -i --input CONTEXT  Path to text file containing user context for personalization
 
 Arguments:
     csv_file            Path to CSV file containing energy data
 """
     try:
         # Parse arguments using docopt with separate help text
-        arguments = docopt(help_text, version=f'Energy Advisor v{VERSION}\nAuthor: {AUTHOR}')
+        arguments = docopt(help_text, version=f'Energy Advisor v{VERSION}\nAuthor: {AUTHOR}\nDate: {RELEASE_DATE}')
         
         # Configure logging based on verbose flag
         if arguments['--verbose']:
@@ -542,6 +697,12 @@ Arguments:
         csv_file = arguments['<csv_file>']
         model = arguments['--model'] or 'gpt-4'
         
+        # Read user context if provided
+        user_context = None
+        if arguments['--input']:
+            user_context = read_user_context(arguments['--input'])
+            logger.info(f"Loaded user context from {arguments['--input']}")
+        
         # Validate input file
         input_path = validate_file_path(csv_file)
         
@@ -558,20 +719,23 @@ Arguments:
         graph_path = "graph.png"
         generate_graph(data, graph_path)
 
-        # Generate insights
-        insights = generate_insights(data, model)
+        # Generate insights and track cost
+        insights, insights_cost = generate_insights(data, model, user_context)
 
-        # Generate recommendations
-        recommendations = generate_recommendations(data, model)
+        # Generate recommendations and track cost
+        recommendations, recommendations_cost = generate_recommendations(data, model, user_context)
 
-        # Generate HTML report
+        # Calculate total cost
+        total_cost = insights_cost + recommendations_cost
+
+        # Generate HTML report with cost information
         report_path = "report.html"
-        generate_report(data, graph_path, insights, recommendations, report_path)
+        generate_report(data, graph_path, insights, recommendations, report_path, total_cost)
 
         # Open the report in the browser
         logger.info("Opening report in web browser")
         webbrowser.open(f"file://{os.path.abspath(report_path)}")
-        logger.info("Report generation completed successfully")
+        logger.info(f"Report generation completed successfully. Total cost: {format_costs(total_cost)}")
     except Exception as e:
         logger.error(f"Error in main execution: {str(e)}")
         raise
