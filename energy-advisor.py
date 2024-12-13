@@ -37,7 +37,11 @@ Dependencies:
     - docopt: Command line argument parsing
 
 Version History:
-    0.2 - Current
+    0.3 - Current
+        - Added support for multiple LLM models (GPT-4, GPT-3.5-turbo, Ollama)
+        - Improved output formatting for insights and recommendations
+        - Added model selection via command line
+    0.2 - Previous
         - Switched to docopt for CLI
         - Added verbose logging option
         - Added version display
@@ -58,7 +62,7 @@ TODO:
     - Add configuration file support
 """
 
-VERSION = "0.2"
+VERSION = "0.3"
 AUTHOR = "Mal Minhas with AI helpers"
 
 import pandas as pd
@@ -73,6 +77,8 @@ from pathlib import Path
 import html
 import sys
 from datetime import datetime
+import requests
+import json
 
 # Security enhancement: Validate file paths
 def validate_file_path(file_path):
@@ -264,12 +270,50 @@ def generate_graph(data, output_path):
         logger.error(f"Error generating graph: {str(e)}")
         raise
 
-def generate_insights(data):
+def generate_model_response(model, messages):
+    """
+    Generate response using either OpenAI or Ollama models.
+    
+    Args:
+        model (str): Model name (e.g., 'gpt-4' or 'llama2')
+        messages (list): List of message dictionaries
+        
+    Returns:
+        str: Model response content
+        
+    Raises:
+        Exception: If API call fails
+    """
+    if model.startswith('gpt-'):
+        response = openai.chat.completions.create(
+            model=model,
+            messages=messages
+        )
+        return response.choices[0].message.content
+    else:
+        # Ollama API endpoint
+        url = f"http://localhost:11434/api/chat"
+        
+        # Format messages for Ollama
+        data = {
+            "model": model,
+            "messages": messages,
+            "stream": False
+        }
+        
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            return response.json()['message']['content']
+        else:
+            raise Exception(f"Ollama API error: {response.text}")
+
+def generate_insights(data, model):
     """
     Generate insights using OpenAI GPT-4.
     
     Args:
         data (pandas.DataFrame): Energy consumption data
+        model (str): Model name (e.g., 'gpt-4' or 'llama2')
         
     Returns:
         str: HTML-formatted insights
@@ -298,17 +342,14 @@ def generate_insights(data):
         Generate at least 5 insights.
         Desired format:
 
-        <b>headline</b>: insight.
+        **headline**: insight.
 
         """
-        response = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a data analyst providing a set of insights derived from the dataset."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        insights = response.choices[0].message.content
+        response = generate_model_response(model, [
+            {"role": "system", "content": "You are a data analyst providing a set of insights derived from the dataset."},
+            {"role": "user", "content": prompt}
+        ])
+        insights = clean_model_output(response)
         logger.info(f"Successfully generated insights:\n{insights}")
         print(f"---- insights: ----\n{insights}")
         return insights
@@ -316,12 +357,37 @@ def generate_insights(data):
         logger.error(f"Error generating insights: {str(e)}")
         raise
 
-def generate_recommendations(data):
+def clean_model_output(text):
+    """
+    Clean up model output by removing newlines and converting markdown to HTML.
+    
+    Args:
+        text (str): Raw model output
+        
+    Returns:
+        str: Cleaned text with HTML formatting
+    """
+    # Remove newlines
+    text = text.replace('\n', ' ')
+    
+    # Convert markdown bold to HTML bold
+    text = text.replace('**', '<b>', 1)
+    while '**' in text:
+        text = text.replace('**', '</b>:', 1)
+        if '**' in text:
+            text = text.replace('**', '<b>', 1)
+
+    text = text.replace('<b>', '\n\n<b>')
+
+    return text
+
+def generate_recommendations(data, model):
     """
     Generate energy usage recommendations using OpenAI GPT-4.
     
     Args:
         data (pandas.DataFrame): Energy consumption data
+        model (str): Model name (e.g., 'gpt-4' or 'llama2')
         
     Returns:
         str: HTML-formatted recommendations
@@ -348,18 +414,15 @@ def generate_recommendations(data):
         Generate at least 10 recommendations.
         Desired format:
        
-        <b>headline</b>: recommendation.
+        **headline**: recommendation.
         
         """
         prompt += data.describe(include='all').to_string()
-        response = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an energy efficiency expert providing a set of recommendations."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        recommendations = response.choices[0].message.content
+        response = generate_model_response(model, [
+            {"role": "system", "content": "You are an energy efficiency expert providing a set of recommendations."},
+            {"role": "user", "content": prompt}
+        ])
+        recommendations = clean_model_output(response)
         logger.info(f"Successfully generated recommendations:\n{recommendations}")
         print(recommendations)
         print(f"---- recommendations:\n{recommendations} ----")
@@ -443,17 +506,19 @@ def main():
     # Define help text separately
     help_text = """
 Usage:
-    energy-advisor.py [-v] <csv_file>
+    energy-advisor.py [-v] [-m MODEL] <csv_file>
     energy-advisor.py (-h | --help)
     energy-advisor.py (-V | --version)
 
 Options:
-    -h --help        Show this help message
-    -v --verbose     Enable verbose logging output
-    -V --version     Show version and author information
+    -h --help           Show this help message
+    -v --verbose        Enable verbose logging output
+    -V --version        Show version and author information
+    -m --model MODEL    Model to use for analysis [default: gpt-4]
+                        Can be 'gpt-4', 'gpt-3.5-turbo', 'llama3.2', etc.
 
 Arguments:
-    csv_file         Path to CSV file containing energy data
+    csv_file            Path to CSV file containing energy data
 """
     try:
         # Parse arguments using docopt with separate help text
@@ -479,14 +544,16 @@ Arguments:
         logger.debug("Starting energy usage report generation")
         logger.debug(f"Arguments: {arguments}")
 
-        # Get CSV file path
+        # Get CSV file path and model
         csv_file = arguments['<csv_file>']
+        model = arguments['--model'] or 'gpt-4'
         
         # Validate input file
         input_path = validate_file_path(csv_file)
         
-        # Set API key with better error handling
-        openai.api_key = get_api_key()
+        # Set API key with better error handling if using GPT models
+        if model.startswith('gpt-'):
+            openai.api_key = get_api_key()
 
         # Load data
         logger.info(f"Loading data from {input_path}")
@@ -498,10 +565,10 @@ Arguments:
         generate_graph(data, graph_path)
 
         # Generate insights
-        insights = generate_insights(data)
+        insights = generate_insights(data, model)
 
         # Generate recommendations
-        recommendations = generate_recommendations(data)
+        recommendations = generate_recommendations(data, model)
 
         # Generate HTML report
         report_path = "report.html"
