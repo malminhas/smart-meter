@@ -32,14 +32,20 @@ Security Considerations:
 Dependencies:
     - pandas: Data manipulation
     - openai: GPT-4 API integration
+    - groq: Groq API integration for Mixtral and Llama2 models
     - matplotlib: Graph generation
     - jinja2: HTML template rendering
     - docopt: Command line argument parsing
+    - requests: HTTP client for Ollama API
 
 Version History:
-    0.4 - Current (December 13, 2024)
+    0.5 - Current (March 19, 2024)
+        - Added support for Groq LLM models (Mixtral and Llama2)
+        - Improved error handling and logging
+        - Updated cost calculation for all models
+    0.4 - (March 19, 2024)
         - Added type hint support
-        Refactored JSON handling in prompts
+        - Refactored JSON handling in prompts
         - Added personalization via context file input (-i option)
         - Improved output file handling
         - Structured JSON responses for insights and recommendations
@@ -68,9 +74,9 @@ TODO:
     - Add configuration file support
 """
 
-VERSION = "0.4"
-AUTHOR = "Mal Minhas with a lot of help from AI"
-RELEASE_DATE = "December 13, 2024"
+VERSION = "0.5"
+AUTHOR = "Mal Minhas with AI helpers"
+RELEASE_DATE = "December 15, 2024"
 
 import pandas as pd # type: ignore
 import openai # type: ignore
@@ -86,6 +92,7 @@ import json
 import html
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Union, Any
+from groq import Groq
 
 # Security enhancement: Validate file paths
 def validate_file_path(file_path: Union[str, Path], must_exist: bool = True) -> Path:
@@ -212,7 +219,7 @@ html_template = """
     <header>
         <h1>Energy Advisor Insights and Recommendations</h1>
         <div class="timestamp">Generated on {{ timestamp }}</div>
-        <div class="cost-info">Analysis cost: {{ total_cost }}</div>
+        <div class="cost-info">Analysis cost: {{ total_cost }} (using {{ model }})</div>
     </header>
     <section>
         <h2>Key Insights</h2>
@@ -287,12 +294,13 @@ def generate_graph(data: pd.DataFrame, output_path: Union[str, Path]) -> None:
         logger.error(f"Error generating graph: {str(e)}")
         raise
 
+
 def generate_model_response(model: str, messages: List[Dict[str, str]]) -> str:
     """
-    Generate response using either OpenAI or Ollama models.
+    Generate response using OpenAI, Groq, or Ollama models.
     
     Args:
-        model: Model name (e.g., 'gpt-4' or 'llama2')
+        model: Model name (e.g., 'gpt-4', 'llama2', 'mixtral-8x7b-32768')
         messages: List of message dictionaries
         
     Returns:
@@ -306,7 +314,16 @@ def generate_model_response(model: str, messages: List[Dict[str, str]]) -> str:
             response = openai.chat.completions.create(
                 model=model,
                 messages=messages,
-                #response_format={"type": "json_object"}  # Request JSON response
+                #response_format={"type": "json_object"}
+            )
+            return response.choices[0].message.content
+        elif model.startswith('mixtral-') or model.startswith('llama2-'):
+            # Groq API handling
+            client = Groq(api_key=get_groq_api_key())
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                response_format={"type": "json_object"}
             )
             return response.choices[0].message.content
         else:
@@ -367,7 +384,7 @@ def calculate_costs(model: str, input_tokens: int, output_tokens: int) -> float:
     Calculate the cost of LLM inference based on model and token counts.
     
     Args:
-        model: Model name (e.g., 'gpt-4', 'gpt-3.5-turbo')
+        model: Model name (e.g., 'gpt-4', 'gpt-3.5-turbo', 'mixtral-8x7b-32768')
         input_tokens: Number of input tokens
         output_tokens: Number of output tokens
         
@@ -376,7 +393,9 @@ def calculate_costs(model: str, input_tokens: int, output_tokens: int) -> float:
     """
     costs: Dict[str, Dict[str, float]] = {
         'gpt-4': {'input': 0.03, 'output': 0.06},
-        'gpt-3.5-turbo': {'input': 0.001, 'output': 0.002}
+        'gpt-3.5-turbo': {'input': 0.001, 'output': 0.002},
+        'mixtral-8x7b-32768': {'input': 0.0007, 'output': 0.0007},  # Groq pricing
+        'llama2-70b-4096': {'input': 0.0007, 'output': 0.0007}      # Groq pricing
     }
     
     if model not in costs:
@@ -432,7 +451,7 @@ def generate_insights(data: pd.DataFrame, model: str, user_context: Optional[str
         
         Requirements:
         - No markdown or HTML formatting
-        - Every number must have a unit (£ for costs, kWh for energy)
+        - Every number must have a unit (£ prefix for costs, kWh suffix for energy)
         - Numbers must have 2 decimal places
         - Make insights personalized if context is provided
         
@@ -513,7 +532,7 @@ def generate_recommendations(data: pd.DataFrame, model: str, user_context: Optio
         
         Requirements:
         - No markdown or HTML formatting
-        - Every number must have a unit (£ for costs, kWh for energy)
+        - Every number must have a unit (£ prefix for costs, kWh suffix for energy)
         - Numbers must have 2 decimal places
         - Make recommendations personalized if context is provided
         
@@ -581,7 +600,8 @@ def split_into_list(text: str) -> List[str]:
 
 def generate_report(data: pd.DataFrame, graph_path: Union[str, Path], 
                    insights: str, recommendations: str, 
-                   output_path: Union[str, Path], total_cost: float = 0.0) -> None:
+                   output_path: Union[str, Path], total_cost: float = 0.0,
+                   model: str = "gpt-4") -> None:
     """
     Generate HTML report with insights and recommendations.
     
@@ -592,6 +612,7 @@ def generate_report(data: pd.DataFrame, graph_path: Union[str, Path],
         recommendations: HTML-formatted recommendations
         output_path: Path to save the HTML report
         total_cost: Total cost of LLM inference
+        model: Model used for generation
         
     Raises:
         IOError: If unable to write the report
@@ -617,7 +638,8 @@ def generate_report(data: pd.DataFrame, graph_path: Union[str, Path],
             insights_list=insights_list,
             recommendations_list=recommendations_list,
             timestamp=timestamp,
-            total_cost=format_costs(total_cost)
+            total_cost=format_costs(total_cost),
+            model=model
         )
         
         with open(output_path, 'w') as f:
@@ -627,7 +649,7 @@ def generate_report(data: pd.DataFrame, graph_path: Union[str, Path],
         logger.error(f"Error generating HTML report: {str(e)}")
         raise
 
-def get_api_key() -> str:
+def get_openai_api_key() -> str:
     """
     Get OpenAI API key from environment variables with fallback options.
     
@@ -638,13 +660,34 @@ def get_api_key() -> str:
         ValueError: If no API key is found
     """
     # Try different common environment variable names
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     
     if not api_key:
         raise ValueError(
-            "OpenAI API key not found. Please set either OPENAI_API_KEY or OPEN_API_KEY "
-            "environment variable with your API key. You can get your API key from "
+            "OpenAI API key not found. Please set either OPENAI_API_KEY "
+            "environment variable with your API key. You can get your API key from: "
             "https://platform.openai.com/api-keys"
+        )
+    
+    return api_key
+
+def get_groq_api_key() -> str:
+    """
+    Get Groq API key from environment variables.
+    
+    Returns:
+        Groq API key
+        
+    Raises:
+        ValueError: If no API key is found
+    """
+    api_key = os.getenv("GROQ_API_KEY")
+    
+    if not api_key:
+        raise ValueError(
+            "Groq API key not found. Please set GROQ_API_KEY "
+            "environment variable with your API key. You can get your API key from "
+            "https://console.groq.com/keys"
         )
     
     return api_key
@@ -663,7 +706,8 @@ Options:
     -v --verbose        Enable verbose logging output
     -V --version        Show version and author information
     -m --model MODEL    Model to use for analysis [default: gpt-4]
-                        Can be 'gpt-4', 'gpt-3.5-turbo', 'llama2', etc.
+                        Can be 'gpt-4', 'gpt-3.5-turbo', 'mixtral-8x7b-32768',
+                        'llama2-70b-4096', or 'llama3.2' for local Ollama model
     -i --input CONTEXT  Path to text file containing user context for personalization
 
 Arguments:
@@ -706,9 +750,17 @@ Arguments:
         # Validate input file
         input_path = validate_file_path(csv_file)
         
-        # Set API key with better error handling if using GPT models
+        # Set API key based on model type
         if model.startswith('gpt-'):
-            openai.api_key = get_api_key()
+            logger.info(f"Using OpenAI API for LLM model={model}")
+            print("Using OpenAI API")
+            openai.api_key = get_openai_api_key()
+        elif model.startswith('mixtral-') or model.startswith('llama2-'):
+            logger.info(f"Using Groq API for LLM model={model}")
+            os.environ["GROQ_API_KEY"] = get_groq_api_key()
+        else:
+            logger.info(f"Using Ollama API for LLM model={model}")
+            print("Using Ollama API")
 
         # Load data
         logger.info(f"Loading data from {input_path}")
@@ -730,7 +782,7 @@ Arguments:
 
         # Generate HTML report with cost information
         report_path = "report.html"
-        generate_report(data, graph_path, insights, recommendations, report_path, total_cost)
+        generate_report(data, graph_path, insights, recommendations, report_path, total_cost, model)
 
         # Open the report in the browser
         logger.info("Opening report in web browser")
