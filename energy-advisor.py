@@ -33,17 +33,20 @@ Dependencies:
     - pandas: Data manipulation
     - openai: GPT-4 API integration
     - groq: Groq API integration for Mixtral and Llama2 models
+    - anthropic: Claude API integration for Sonnet models
     - matplotlib: Graph generation
     - jinja2: HTML template rendering
     - docopt: Command line argument parsing
     - requests: HTTP client for Ollama API
 
 Version History:
-    0.5 - Current (March 19, 2024)
+    0.5 - Current (December 15, 2024)
         - Added support for Groq LLM models (Mixtral and Llama2)
+        - Added support for Anthropic Claude Sonnet 3.5 model
+        - Added type hints to all functions
         - Improved error handling and logging
         - Updated cost calculation for all models
-    0.4 - (March 19, 2024)
+    0.4 - (December 13, 2024)
         - Added type hint support
         - Refactored JSON handling in prompts
         - Added personalization via context file input (-i option)
@@ -92,7 +95,8 @@ import json
 import html
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Union, Any
-from groq import Groq
+from groq import Groq # type: ignore
+from anthropic import Anthropic # type: ignore
 
 # Security enhancement: Validate file paths
 def validate_file_path(file_path: Union[str, Path], must_exist: bool = True) -> Path:
@@ -294,13 +298,12 @@ def generate_graph(data: pd.DataFrame, output_path: Union[str, Path]) -> None:
         logger.error(f"Error generating graph: {str(e)}")
         raise
 
-
 def generate_model_response(model: str, messages: List[Dict[str, str]]) -> str:
     """
-    Generate response using OpenAI, Groq, or Ollama models.
+    Generate response using OpenAI, Groq, Anthropic, or Ollama models.
     
     Args:
-        model: Model name (e.g., 'gpt-4', 'llama2', 'mixtral-8x7b-32768')
+        model: Model name (e.g., 'gpt-4', 'llama2', 'mixtral-8x7b-32768', 'claude-3-sonnet')
         messages: List of message dictionaries
         
     Returns:
@@ -326,10 +329,24 @@ def generate_model_response(model: str, messages: List[Dict[str, str]]) -> str:
                 response_format={"type": "json_object"}
             )
             return response.choices[0].message.content
+        elif model.startswith('claude-'):
+            # Anthropic API handling
+            client = Anthropic(api_key=get_anthropic_api_key())
+            # Convert messages to Anthropic format
+            system_msg = next((m['content'] for m in messages if m['role'] == 'system'), None)
+            user_msg = next((m['content'] for m in messages if m['role'] == 'user'), None)
+            
+            prompt = f"{system_msg}\n\n{user_msg}" if system_msg else user_msg
+            response = client.messages.create(
+                model=model,
+                max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}],
+                system="Return response in JSON format."
+            )
+            return response.content[0].text
         else:
             # Ollama API endpoint
             url = f"http://localhost:11434/api/chat"
-            
             # Format messages for Ollama
             data = {
                 "model": model,
@@ -384,18 +401,28 @@ def calculate_costs(model: str, input_tokens: int, output_tokens: int) -> float:
     Calculate the cost of LLM inference based on model and token counts.
     
     Args:
-        model: Model name (e.g., 'gpt-4', 'gpt-3.5-turbo', 'mixtral-8x7b-32768')
+        model: Model name (e.g., 'gpt-4', 'gpt-3.5-turbo', 'mixtral-8x7b-32768', 'claude-3-sonnet')
         input_tokens: Number of input tokens
         output_tokens: Number of output tokens
         
     Returns:
         Cost in USD
     """
+    # Define pricing for different models.  Costs are per 1000 tokens
+    # OpenAI model pricing: https://openai.com/api/pricing/ 
+    # 1. gpt-4: input=$30.00/1M tokens, output=$60.00/1M tokens
+    # 2. gpt-3.5-turbo: input=$1.50/1M tokens, output=$2.00/1M tokens
+    # Groq pricing: https://groq.com/pricing/
+    # 3. mixtral-8x7b-32768: input=	$0.24/1M tokens, output=$0.24/1M tokens
+    # 4. llama2-70b-4096: input=$0.59/1M tokens, output=$0.79/1M tokens
+    # Anthropic pricing: https://www.anthropic.com/pricing#anthropic-api
+    # 5. claude-3-5-sonnet-20241022: input=$3.75/1M tokens, output=$15/1M tokens
     costs: Dict[str, Dict[str, float]] = {
-        'gpt-4': {'input': 0.03, 'output': 0.06},
-        'gpt-3.5-turbo': {'input': 0.001, 'output': 0.002},
-        'mixtral-8x7b-32768': {'input': 0.0007, 'output': 0.0007},  # Groq pricing
-        'llama2-70b-4096': {'input': 0.0007, 'output': 0.0007}      # Groq pricing
+        'gpt-4': {'input': 0.03, 'output': 0.06},                        # OpenAI
+        'gpt-3.5-turbo': {'input': 0.0015, 'output': 0.002},             # OpenAI
+        'mixtral-8x7b-32768': {'input': 0.00024, 'output': 0.00024},     # Groq
+        'llama2-70b-4096': {'input': 0.00059, 'output': 0.00079},        # Groq
+        'claude-3-5-sonnet-20241022': {'input': 0.0375, 'output': 0.015} # Anthropic pricing
     }
     
     if model not in costs:
@@ -421,7 +448,8 @@ def format_costs(cost: float) -> str:
         return "No cost (using local model)"
     return f"${cost:.4f}"
 
-def generate_insights(data: pd.DataFrame, model: str, user_context: Optional[str] = None) -> Tuple[str, float]:
+def generate_insights(data: pd.DataFrame, model: str, user_context: Optional[str] = None, 
+                      dump_insights: bool = False) -> Tuple[str, float]:
     """
     Generate insights using OpenAI GPT-4.
     
@@ -470,7 +498,8 @@ def generate_insights(data: pd.DataFrame, model: str, user_context: Optional[str
         }}
         """
         
-        print(f"========== Insights Prompt ({len(prompt)} tokens) ==========\n{prompt}")
+        if dump_insights:
+            print(f"========== Insights Prompt ({len(prompt)} tokens) ==========\n{prompt}")
         # Estimate input tokens (rough approximation)
         input_tokens = len(prompt.split()) + len(str(description).split())
         if user_context:
@@ -481,7 +510,8 @@ def generate_insights(data: pd.DataFrame, model: str, user_context: Optional[str
             {"role": "user", "content": prompt}
         ])
         
-        print(f"========== Insights Response ({len(response)} tokens) ==========\n{response}")
+        if dump_insights:
+            print(f"========== Insights Response ({len(response)} tokens) ==========\n{response}")
         # Parse JSON response
         response_json = json.loads(response)
         insights_list = response_json.get('insights', [])
@@ -504,7 +534,8 @@ def generate_insights(data: pd.DataFrame, model: str, user_context: Optional[str
         logger.error(f"Error generating insights: {str(e)}")
         raise
 
-def generate_recommendations(data: pd.DataFrame, model: str, user_context: Optional[str] = None) -> Tuple[str, float]:
+def generate_recommendations(data: pd.DataFrame, model: str, user_context: Optional[str] = None, 
+                             dump_recommendations: bool = False) -> Tuple[str, float]:
     """
     Generate energy usage recommendations using OpenAI GPT-4.
     
@@ -551,7 +582,8 @@ def generate_recommendations(data: pd.DataFrame, model: str, user_context: Optio
         }}
         """
         prompt += data.describe(include='all').to_string()
-        print(f"========== Recommendations Prompt ({len(prompt)} tokens) ==========\n{prompt}")
+        if dump_recommendations:
+            print(f"========== Recommendations Prompt ({len(prompt)} tokens) ==========\n{prompt}")
 
         # Estimate input tokens (rough approximation)
         input_tokens = len(prompt.split())
@@ -563,7 +595,8 @@ def generate_recommendations(data: pd.DataFrame, model: str, user_context: Optio
             {"role": "user", "content": prompt}
         ])
         
-        print(f"========== Recommendations Response ({len(response)} tokens) ==========\n{response}")
+        if dump_recommendations:
+            print(f"========== Recommendations Response ({len(response)} tokens) ==========\n{response}")
         # Parse JSON response
         response_json = json.loads(response)
         recommendations_list = response_json.get('recommendations', [])
@@ -692,6 +725,27 @@ def get_groq_api_key() -> str:
     
     return api_key
 
+def get_anthropic_api_key() -> str:
+    """
+    Get Anthropic API key from environment variables.
+    
+    Returns:
+        Anthropic API key
+        
+    Raises:
+        ValueError: If no API key is found
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    
+    if not api_key:
+        raise ValueError(
+            "Anthropic API key not found. Please set ANTHROPIC_API_KEY "
+            "environment variable with your API key. You can get your API key from "
+            "https://console.anthropic.com/settings/keys"
+        )
+    
+    return api_key
+
 def main() -> None:
     """Main execution function for the Energy Advisor tool."""
     # Define help text separately
@@ -707,7 +761,8 @@ Options:
     -V --version        Show version and author information
     -m --model MODEL    Model to use for analysis [default: gpt-4]
                         Can be 'gpt-4', 'gpt-3.5-turbo', 'mixtral-8x7b-32768',
-                        'llama2-70b-4096', or 'llama3.2' for local Ollama model
+                        'llama2-70b-4096', 'claude-sonnet', 
+                        or local Ollama models such as 'llama3.2'.
     -i --input CONTEXT  Path to text file containing user context for personalization
 
 Arguments:
@@ -752,14 +807,34 @@ Arguments:
         
         # Set API key based on model type
         if model.startswith('gpt-'):
-            logger.info(f"Using OpenAI API for LLM model={model}")
-            print("Using OpenAI API")
+            using_model = 'gpt-4'
+            str_model = f"Using OpenAI API for LLM model '{model}'='{using_model}'"
+            print(str_model)
+            logger.info(str_model)
             openai.api_key = get_openai_api_key()
-        elif model.startswith('mixtral-') or model.startswith('llama2-'):
-            logger.info(f"Using Groq API for LLM model={model}")
+        elif model.startswith('mixtral'):
+            using_model = 'mixtral-8x7b-32768'
+            str_model = f"Using Groq API for LLM model '{model}'='{using_model}'"
+            print(str_model)
+            logger.info(str_model)
+            model = using_model
             os.environ["GROQ_API_KEY"] = get_groq_api_key()
+        elif model.startswith('llama2'):
+            using_model = 'llama2-70b-4096'
+            str_model = f"Using Groq API for LLM model '{model}'='{using_model}'"
+            print(str_model)
+            logger.info(str_model)
+            model = using_model
+            os.environ["GROQ_API_KEY"] = get_groq_api_key()
+        elif model.startswith('claude'):
+            using_model = 'claude-3-5-sonnet-20241022'
+            str_model = f"Using Anthropic API for LLM model '{model}'='{using_model}'"
+            print(str_model)
+            logger.info(str_model)
+            model = using_model
+            os.environ["ANTHROPIC_API_KEY"] = get_anthropic_api_key()
         else:
-            logger.info(f"Using Ollama API for LLM model={model}")
+            logger.info(f"Using Ollama API for LLM model='{model}'")
             print("Using Ollama API")
 
         # Load data
