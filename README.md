@@ -10,7 +10,7 @@ Timestamp,Electricity consumption (kWh),Electricity cost (£),Gas consumption (k
 ``` 
 <img width="653" alt="image" src="https://github.com/user-attachments/assets/5556df8f-387f-4b03-8007-ebbf8429c212">
 
-* **[energy-advisor.py](energy-advisor.py)** - a command line agent entirely developed using ChatGPT Pro and Cursor which is able to autogenerate an HTML insights report plus graph from the input csv. Various models are supported from OpenAI (`gpt-4` and `gpt-3.5-turbo`), Groq (`mixtral-8x7b-32768` and `llama2-70b-4096`) and Ollama (`llama3.2`).  The command line looks like this:
+* **[energy-advisor.py](energy-advisor.py)** - a command line agent entirely developed using ChatGPT Pro and Cursor which is able to autogenerate an HTML insights report plus graph from the input csv. Various models are supported from OpenAI (`gpt-4` and `gpt-3.5-turbo`), Groq (`mixtral-8x7b-32768` and `llama2-70b-4096`), Claude (`claude-3-5-sonnet-20241022`) and Ollama (`llama3.2`).  The command line help looks like this:
 ```
 Usage:
     energy-advisor.py [-v] [-m MODEL] [-i CONTEXT] <csv_file>
@@ -22,16 +22,18 @@ Options:
     -v --verbose        Enable verbose logging output
     -V --version        Show version and author information
     -m --model MODEL    Model to use for analysis [default: gpt-4]
-                        Can be 'gpt-4', 'gpt-3.5-turbo', 'mixtral-8x7b-32768',
-                        'llama2-70b-4096', or 'llama3.2' for local Ollama model
+                        - OpenAI: 'gpt-4', 'gpt-3.5-turbo'
+                        - Groq: 'mixtral', 'llama2'
+                        - Claude: 'claude'
+                        - Ollama: 'llama3.2'
     -i --input CONTEXT  Path to text file containing user context for personalization
 
 Arguments:
     csv_file            Path to CSV file containing energy data
 ```
-Example usage invoking `groq` `mixtral-8x7b-32768` LLM using freeform input context supplied in the `context.txt` and bill data held in `combined-consumption-2024-01-01-2024-12-31.csv` file: 
+Of these options, Groq `mixtral` is the fastest and Ollama `llama3.2` is the least expensive in terms of carbon cost.  Here is an example invoking the Groq `mixtral-8x7b-32768` LLM using freeform homeowner input context supplied in the `context.txt` and bill data held in `combined-consumption-2024-01-01-2024-12-31.csv` file: 
 ```
-$ python energy-advisor.py -m mixtral-8x7b-32768 combined-consumption-2024-01-01-2024-12-31.csv -i context.txt
+$ python energy-advisor.py -m mixtral combined-consumption-2024-01-01-2024-12-31.csv -i context.txt
 ```
 Generated report from that command line looks like this:
 
