@@ -760,9 +760,10 @@ Options:
     -v --verbose        Enable verbose logging output
     -V --version        Show version and author information
     -m --model MODEL    Model to use for analysis [default: gpt-4]
-                        Can be 'gpt-4', 'gpt-3.5-turbo', 'mixtral-8x7b-32768',
-                        'llama2-70b-4096', 'claude-sonnet', 
-                        or local Ollama models such as 'llama3.2'.
+                        - OpenAI: 'gpt-4', 'gpt-3.5-turbo'
+                        - Groq: 'mixtral', 'llama2'
+                        - Claude: 'claude'
+                        - Ollama: 'llama3.2'
     -i --input CONTEXT  Path to text file containing user context for personalization
 
 Arguments:
