@@ -8,3 +8,10 @@
 *.pyw
 *.pyz
 *.py3
+*.ipynb
+*.ipynb_checkpoints
+*.ipynb_checkpoints_old
+*.log
+*.png
+*.env
+*.txt
