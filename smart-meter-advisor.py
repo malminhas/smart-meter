@@ -43,6 +43,8 @@ Dependencies:
     - BeautifulSoup: HTML parsing
 
 Version History:
+    0.2 - December 21, 2024
+        - Added support to check for missing environment variables
     0.1 - Initial release (December 20, 2024)
         - End to end smart meter data analysis and reporting tool
         - LLM powered insights and recommendations
@@ -60,9 +62,9 @@ TODO:
     - Add configuration file support
 """
 
-VERSION = "0.1"
+VERSION = "0.2"
 AUTHOR = "Mal Minhas with AI helpers"
-RELEASE_DATE = "December 20, 2024"
+RELEASE_DATE = "December 21, 2024"
 
 import pandas as pd # type: ignore
 import openai # type: ignore
@@ -1206,10 +1208,12 @@ Options:
         ihd_mac = get_ihd()
         house_number = get_house_number()
         postcode = get_postcode()
-        
+
+        if not (mpan and ihd_mac and house_number and postcode):
+            raise ValueError(f"One or more environment variables not set: MPAN={mpan}, IHD={ihd_mac}, House Number={house_number}, Postcode={postcode}")
+        logger.debug(f"MPAN: {mpan}, IHD: {ihd_mac}, House Number: {house_number}, Postcode: {postcode}")
+                
         if arguments['--command'] == 'dump-meter':
-            logger.debug(f"MPAN: {mpan}, IHD: {ihd_mac}, House Number: {house_number}, Postcode: {postcode}")
-            assert(mpan and ihd_mac and house_number and postcode)
             html = checkMeter(mpan, house_number, postcode, confirm='on')
             generateSmartMeterReport(html)  # This will now save and open the formatted report
 
