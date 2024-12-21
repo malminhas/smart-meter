@@ -40,7 +40,9 @@ Dependencies:
     - requests: HTTP client for Ollama API
 
 Version History:
-    0.5 - Current (December 15, 2024)
+    0.6 - (December 21, 2024)
+        - Added annotation to the graph to show the price per kWh for electricity and gas
+    0.5 - (December 15, 2024)
         - Added support for Groq LLM models (Mixtral and Llama2)
         - Added support for Anthropic Claude Sonnet 3.5 model
         - Added type hints to all functions
@@ -77,9 +79,9 @@ TODO:
     - Add configuration file support
 """
 
-VERSION = "0.5"
+VERSION = "0.6"
 AUTHOR = "Mal Minhas with AI helpers"
-RELEASE_DATE = "December 15, 2024"
+RELEASE_DATE = "December 21, 2024"
 
 import pandas as pd # type: ignore
 import openai # type: ignore
@@ -251,7 +253,7 @@ html_template = """
 
 def generate_graph(data: pd.DataFrame, output_path: Union[str, Path]) -> None:
     """
-    Generate energy consumption visualization graph.
+    Generate energy consumption visualization graph with price annotations.
     
     Args:
         data: Energy consumption data
@@ -267,36 +269,80 @@ def generate_graph(data: pd.DataFrame, output_path: Union[str, Path]) -> None:
         output_path = validate_file_path(output_path, must_exist=False)
         
         # Validate required columns
-        required_columns = ['Timestamp', 'Electricity consumption (kWh)', 'Gas consumption (kWh)']
+        required_columns = ['Timestamp', 'Electricity consumption (kWh)', 'Gas consumption (kWh)',
+                          'Electricity cost (£)', 'Gas cost (£)']
+
         if not all(col in data.columns for col in required_columns):
             raise ValueError("Missing required columns in data")
 
         data['Timestamp'] = pd.to_datetime(data['Timestamp'], format='%m/%Y')
         
         fig, ax1 = plt.subplots(figsize=(12, 6))
-        ax1.plot(data['Timestamp'], data['Electricity consumption (kWh)'], 
-                color='blue', marker='o', label='Electricity Consumption (kWh)')
+        # Add extra headroom above highest point and below lowest point
+        max_value = data['Electricity consumption (kWh)'].max()
+        min_value = data['Electricity consumption (kWh)'].min()
+        delta = (max_value - min_value)/10
+        ax1.set_ylim(min_value - delta, max_value + delta)  # 10% padding on both ends
+
+        # Plot electricity consumption
+        elec = ax1.plot(data['Timestamp'], data['Electricity consumption (kWh)'], 
+                       color='green', marker='o', label='Electricity Consumption (kWh)')
         ax1.set_xlabel('Time')
         ax1.set_ylabel('Electricity Consumption (kWh)', color='green')
+
+        # Add electricity price annotations
+        for x, y, price in zip(data['Timestamp'], data['Electricity consumption (kWh)'],
+                             data['Electricity cost (£)']):
+            ax1.annotate(f'£{price:.1f}', 
+                        (x, y),
+                        xytext=(10, 5),
+                        textcoords='offset points',
+                        ha='center',
+                        color='green',
+                        fontsize=10)
         
         ax1.tick_params(axis='y', labelcolor='green')
         ax1.set_xticks(data['Timestamp'])
         ax1.set_xticklabels(data['Timestamp'].dt.strftime('%b %y'), rotation=90)
 
+        # Plot gas consumption
         ax2 = ax1.twinx()
-        ax2.plot(data['Timestamp'], data['Gas consumption (kWh)'], 
-                color='green', marker='x', label='Gas Consumption (kWh)')
+        # Add extra headroom above highest point and below lowest point
+        max_value = data['Gas consumption (kWh)'].max()
+        min_value = data['Gas consumption (kWh)'].min()
+        delta = (max_value - min_value)/10
+        gas = ax2.plot(data['Timestamp'], data['Gas consumption (kWh)'], 
+                      color='blue', marker='x', label='Gas Consumption (kWh)')
         ax2.set_ylabel('Gas Consumption (kWh)', color='blue')
+        ax2.set_ylim(min_value - delta, max_value + delta)  # 10% padding on both ends
+
+        # Add gas price annotations
+        for x, y, price in zip(data['Timestamp'], data['Gas consumption (kWh)'],
+                             data['Gas cost (£)']):
+            ax2.annotate(f'£{price:.1f}',
+                        (x, y),
+                        xytext=(-15, -15),
+                        textcoords='offset points',
+                        ha='center',
+                        color='blue',
+                        fontsize=10)
+
         ax2.tick_params(axis='y', labelcolor='blue')
+
+        # Add legend
+        lns = elec + gas
+        labs = [l.get_label() for l in lns]
+        ax1.legend(lns, labs, loc='upper right')
 
         plt.title('Electricity and Gas Consumption Over Time')
         ax1.grid(axis='x', linestyle='--', alpha=0.7)
+        plt.tight_layout()  # Adjust layout to prevent overlapping
         plt.savefig(output_path)
         plt.close()
         logger.info(f"Graph saved successfully to {output_path}")
     except Exception as e:
         logger.error(f"Error generating graph: {str(e)}")
-        raise
+        raise ValueError(f"Error generating graph: {str(e)}")
 
 def generate_model_response(model: str, messages: List[Dict[str, str]]) -> str:
     """
@@ -857,7 +903,7 @@ Arguments:
         total_cost = insights_cost + recommendations_cost
 
         # Generate HTML report with cost information
-        report_path = "report.html"
+        report_path = "energy-report.html"
         generate_report(data, graph_path, insights, recommendations, report_path, total_cost, model)
 
         # Open the report in the browser
