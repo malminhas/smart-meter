@@ -60,7 +60,7 @@ resource "docker_container" "backend" {
   }
 
   env = [
-    "CORS_ORIGINS=http://localhost:8080",
+    "CORS_ORIGINS=http://localhost:8081",
     "BASE_PATH=/energy-assistant"
   ]
 
@@ -77,7 +77,7 @@ resource "docker_container" "frontend" {
 
   ports {
     internal = 80
-    external = 8080
+    external = 8081
   }
 
   restart = "unless-stopped"
