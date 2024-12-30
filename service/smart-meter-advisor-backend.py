@@ -16,8 +16,11 @@ Features:
 - CORS support for frontend integration
 
 Version History:
-    1.0.5 - (December 29, 2024)
+    1.0.5 - (December 30, 2024)
         - Added validation checks for IHD_MAC and MPAN
+        - Added check for valid house number and postcode
+        - Added check for valid start and end date
+        - Updated Docker and nginx configuration for production
     1.0.4 - (December 28, 2024)
         - Added deployment to docker with nginx, frontend and backend
     1.0.3 - (December 27, 2024)
@@ -43,7 +46,7 @@ Version History:
         - JSON-based data exchange
 
 Todo:
-- Add a check for valid start and end date
+- Add a simple database for storing meter information from users.
 
 Author: Mal Minhas with AI help.
 License: MIT
@@ -66,7 +69,7 @@ from bs4 import BeautifulSoup # type: ignore
 import re
 
 VERSION = "1.0.5"
-DATE = "29.12.2024"
+DATE = "30.12.2024"
 
 # Initialize FastAPI app
 app = FastAPI(title="Smart Meter Advisor API")
