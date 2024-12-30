@@ -71,13 +71,20 @@ import re
 VERSION = "1.0.5"
 DATE = "30.12.2024"
 
-# Initialize FastAPI app
-app = FastAPI(title="Smart Meter Advisor API")
+# Create FastAPI app with the correct base path
+app = FastAPI(
+    title="Smart Meter Advisor API",
+    description="API for analyzing smart meter data",
+    version="1.0.0",
+    docs_url="/docs",
+    openapi_url="/openapi.json",
+    root_path="/energy-assistant/api"
+)
 
-# Configure CORS
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["https://smartmeteradvisor.uk", "http://localhost:8081"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
