@@ -1,0 +1,17 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the backend code with correct filename
+COPY smart-meter-advisor-backend.py .
+
+EXPOSE 8000
+
+# Command to run the FastAPI server with correct filename
+CMD ["uvicorn", "smart-meter-advisor-backend:app", "--host", "0.0.0.0", "--port", "8000"] 
