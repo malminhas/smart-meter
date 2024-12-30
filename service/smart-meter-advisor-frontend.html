@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Meter Advisor</title>
+    <style>
+        :root {
+            --edf-blue: #003865;
+            --edf-orange: #FF6B00;
+            --primary-color: #0274be;  /* Match the blue from the site */
+            --text-color: #3a3a3a;
+            --background-color: #ffffff;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+        }
+        
+        .header {
+            background-color: var(--edf-blue);
+            color: var(--edf-orange);
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .button-container {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: var(--edf-blue);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #004d8c;
+        }
+        
+        .back-button {
+            margin-top: 20px;
+            background-color: var(--edf-orange);
+        }
+        
+        .back-button:hover {
+            background-color: #ff8533;
+        }
+        
+        .date-range {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f8f8;
+            border-radius: 5px;
+        }
+        
+        .slider-container {
+            margin: 20px 0;
+        }
+        
+        .slider-container label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        #chart {
+            margin-top: 20px;
+        }
+        
+        .form-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f8f8;
+            border-radius: 5px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--edf-blue);
+            font-weight: bold;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        
+        .form-input:focus {
+            border-color: var(--edf-blue);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0,56,101,0.1);
+        }
+        
+        .meter-info {
+            background: #f8f8f8;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        .meter-info h3 {
+            color: var(--edf-blue);
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .meter-info pre {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .error-message {
+            background: #fff0f0;
+            padding: 20px;
+            border-radius: 5px;
+            border: 1px solid #ffcdd2;
+            margin-top: 20px;
+        }
+        
+        .error-message h3 {
+            color: #d32f2f;
+            margin-top: 0;
+        }
+        
+        .error-details {
+            background: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .device-info {
+            display: flex;
+            margin: 2px 0;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .meter-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f8f8;
+            border-radius: 5px;
+        }
+        
+        .meter-section p {
+            margin: 5px 0;
+            font-size: 1em;
+            line-height: 1.0;
+        }
+
+        .meter-section h3 {
+            color: var(--edf-blue);
+            font-size: 1.2em;
+            margin: 0 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 2px solid var(--edf-orange);
+            text-decoration: none;  /* Remove the blue underline */
+        }
+        
+        .meter-section pre {
+            font-family: Arial, sans-serif;  /* Use same font as rest of page */
+            font-size: 1em;
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.0;
+            margin: 0;
+        }
+        
+        .device-info-key {
+            font-weight: bold;
+            width: 250px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        
+        .device-info-value {
+            flex-grow: 1;
+            white-space: nowrap;
+        }
+        
+        .button-container {
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .back-button {
+            background-color: var(--edf-orange);
+            padding: 12px 30px;
+            font-size: 1.1em;
+        }
+        
+        .back-button:hover {
+            background-color: #ff8533;
+        }
+        
+        .date-range-selector {
+            padding: 20px;
+            background: #f8f8f8;
+            border-radius: 5px;
+        }
+        
+        .date-input {
+            margin-bottom: 15px;
+        }
+        
+        .date-input label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .date-input span {
+            color: var(--edf-blue);
+            font-weight: normal;
+        }
+        
+        .date-input input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        
+        .insights-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .insights-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+            line-height: 1.4;
+        }
+        
+        .insights-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            margin: 20px 0;
+        }
+        
+        .monthly-chart {
+            height: 400px;
+        }
+        
+        .daily-chart {
+            height: 350px;
+        }
+        
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .device-info {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        
+        .device-info-key {
+            font-weight: bold;
+            display: inline-block;
+            min-width: 200px;  /* Increased to accommodate longer insight keys */
+            margin-right: 10px;
+        }
+        
+        .meter-section {
+            background: #f8f8f8;
+            border-radius: 5px;
+            padding: 12px;
+            margin-bottom: 12px;
+            min-width: fit-content;
+        }
+        
+        .insights-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* General device info styling */
+        .device-info {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        /* Specific override for smart meter report */
+        .smart-meter-report .device-info {
+            margin: 2px 0;  /* Even smaller margin for smart meter report */
+            line-height: 1.2;  /* Tighter line height */
+        }
+
+        /* Update meter section padding for smart meter report */
+        .smart-meter-report .meter-section {
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        /* Adjust heading margins in smart meter report */
+        .smart-meter-report .meter-section h3 {
+            margin: 0 0 8px 0;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>Smart Meter Advisor</h1>
+        </div>
+        <div class="content" id="mainContent">
+            <!-- Content will be dynamically updated here -->
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let currentView = 'home';
+        let dateRange = null;
+        
+        // Views
+        const views = {
+            home: `
+                <p>Welcome to Smart Meter Advisor. This application helps you understand your energy usage by analyzing data from your smart meter.</p>
+                
+                <div class="form-container">
+                    <div class="form-group">
+                        <label for="mpan">MPAN (Meter Point Administration Number):</label>
+                        <input type="text" id="mpan" class="form-input" placeholder="Enter your MPAN">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ihdMac">IHD MAC (In-Home Display MAC Address):</label>
+                        <input type="text" id="ihdMac" class="form-input" placeholder="Enter your IHD MAC">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="houseNumber">House Number:</label>
+                        <input type="text" id="houseNumber" class="form-input" placeholder="Enter your house number">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="postcode">Postcode:</label>
+                        <input type="text" id="postcode" class="form-input" placeholder="Enter your postcode">
+                    </div>
+                </div>
+
+                <div class="button-container">
+                    <button onclick="showMeterReport()">Get Smart Meter Report</button>
+                    <button onclick="showEnergyUsage()">Get Energy Usage Report</button>
+                </div>
+            `,
+            
+            meterReport: `
+                <div id="meterReportContent">Retrieving smart meter information...</div>
+                <button class="back-button" onclick="showHome()">Back to Home</button>
+            `,
+            
+            energyUsage: `
+                <div id="energyUsageContent">
+                    <h2>Energy Usage Report</h2>
+                    <div class="meter-section">
+                        <div class="date-range-selector">
+                            <div class="date-input">
+                                <label for="startDate">Start Date (min: <span id="startDateLabel"></span>)</label>
+                                <input type="date" id="startDate">
+                            </div>
+                            <div class="date-input">
+                                <label for="endDate">End Date (max: <span id="endDateLabel"></span>)</label>
+                                <input type="date" id="endDate">
+                            </div>
+                            <div class="button-container">
+                                <button class="action-button" onclick="generateEnergyReport()">Generate Report</button>
+                                <button class="action-button" onclick="downloadEnergyData()">Get Energy Data</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="button-container">
+                        <button class="back-button" onclick="showHome()">Back to Home</button>
+                    </div>
+                </div>
+            `
+        };
+        
+        // Navigation functions
+        function showHome() {
+            currentView = 'home';
+            document.getElementById('mainContent').innerHTML = views.home;
+            
+            // Restore previously entered values
+            const mpan = localStorage.getItem('mpan');
+            const ihdMac = localStorage.getItem('ihd_mac');
+            const houseNumber = localStorage.getItem('house_number');
+            const postcode = localStorage.getItem('postcode'); 
+            
+            if (mpan) document.getElementById('mpan').value = mpan;
+            if (ihdMac) document.getElementById('ihdMac').value = ihdMac;
+            if (houseNumber) document.getElementById('houseNumber').value = houseNumber;
+            if (postcode) document.getElementById('postcode').value = postcode;
+        }
+
+        const BACKEND_URL = 'http://localhost:8000';
+        
+        function isValidMpan(mpan) {
+            return /^\d{12,16}$/.test(mpan);
+        }
+
+        function isValidHouseNumber(houseNumber) {
+            return /^[a-zA-Z0-9\s-]+$/.test(houseNumber);
+        }
+
+        function isValidUKPostcode(postcode) {
+            // UK postcode regex pattern
+            const postcodePattern = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i;
+            // Remove all whitespace and convert to uppercase
+            const formattedPostcode = postcode.replace(/\s/g, '').toUpperCase();
+            return postcodePattern.test(formattedPostcode);
+        }
+
+        function showCustomAlert(message, duration = 3000) {
+            const alertBox = document.createElement('div');
+            alertBox.textContent = message;
+            alertBox.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 20px;
+                border-radius: 5px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                z-index: 1000;
+                max-width: 80%;
+                text-align: center;
+                font-family: Arial, sans-serif;
+            `;
+            
+            document.body.appendChild(alertBox);
+            
+            // Remove after specified duration
+            setTimeout(() => {
+                alertBox.remove();
+            }, duration);
+        }
+
+        async function validateMeterDetails(mpan, houseNumber, postcode) {
+            console.log('Validating meter details:', { mpan, houseNumber, postcode });
+            
+            // Input validation
+            const validationErrors = [];
+            
+            if (!isValidMpan(mpan)) {
+                validationErrors.push('MPAN must be between 12-16 digits');
+            }
+            
+            if (!isValidHouseNumber(houseNumber)) {
+                validationErrors.push('House number must contain only letters, numbers, spaces, or hyphens');
+            }
+            
+            if (!isValidUKPostcode(postcode)) {
+                validationErrors.push('Please enter a valid UK postcode');
+            }
+            
+            if (validationErrors.length > 0) {
+                showCustomAlert(validationErrors.join('\n'));
+                return false;
+            }
+
+            // Log stored values for comparison
+            console.log('Stored values:', {
+                storedMpan: localStorage.getItem('mpan'),
+                storedHouseNumber: localStorage.getItem('house_number'),
+                storedPostcode: localStorage.getItem('postcode')
+            });
+
+            try {
+                console.log('Sending validation request to /validate_meter');
+                const response = await fetch(`${BACKEND_URL}/validate-meter`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mpan,
+                        house_number: houseNumber,
+                        postcode: postcode.toUpperCase().replace(/\s/g, ' ') // Normalize postcode format
+                    })
+                });
+
+                console.log('Validation response status:', response.status);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `Validation failed with status: ${response.status}`);
+                }
+                console.log('Validation successful');
+                return true;
+            } catch (error) {
+                console.error('Meter validation error:', error);
+                console.error('Full error details:', {
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                const errorMessage = error.message || 'Unable to validate meter details. Please check your information and try again.';
+                showCustomAlert(errorMessage);
+                return false;
+            }
+        }
+
+        async function showMeterReport() {
+            const mpan = document.getElementById('mpan').value.trim();
+            const ihdMac = document.getElementById('ihdMac').value.trim();
+            const houseNumber = document.getElementById('houseNumber').value.trim();
+            const postcode = document.getElementById('postcode').value.trim();
+            
+            console.log('Form values:', { mpan, ihdMac, houseNumber, postcode });  // Debug log
+            
+            if (!mpan || !ihdMac || !houseNumber || !postcode) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            // Check if values have changed from localStorage
+            const storedMpan = localStorage.getItem('mpan');
+            const storedHouseNumber = localStorage.getItem('house_number');
+            const storedPostcode = localStorage.getItem('postcode');
+
+            if (storedMpan && 
+                (mpan !== storedMpan || 
+                 houseNumber !== storedHouseNumber || 
+                 postcode !== storedPostcode)) {
+                
+                const isValid = await validateMeterDetails(mpan, houseNumber, postcode);
+                if (!isValid) {
+                    return;
+                }
+            } else {
+                console.log('No changes detected in meter validation details');
+            }
+            
+            // Store values in localStorage
+            localStorage.setItem('mpan', mpan);
+            localStorage.setItem('ihd_mac', ihdMac);
+            localStorage.setItem('house_number', houseNumber);
+            localStorage.setItem('postcode', postcode);
+            
+            currentView = 'meterReport';
+            document.getElementById('mainContent').innerHTML = views.meterReport;
+            generateMeterReport();
+        }
+        
+        async function showEnergyUsage() {
+            currentView = 'energyUsage';
+            document.getElementById('mainContent').innerHTML = views.energyUsage;
+            await initializeDateRange();
+        }
+        
+        // API interaction functions
+        function formatDeviceInfo(content) {
+            if (!Array.isArray(content)) return content;
+            
+            return content.map(line => {
+                // Skip empty lines and the HOME link
+                if (!line.trim() || line.includes('HOME')) return '';
+                
+                // Format key-value pairs
+                const colonIndex = line.indexOf(':');
+                if (colonIndex > -1) {
+                    const key = line.substring(0, colonIndex).trim();
+                    const value = line.substring(colonIndex + 1).trim();
+                    return `<div class="device-info"><span class="device-info-key">${key}:</span> ${value}</div>`;
+                }
+                return line;
+            }).filter(line => line).join('\n');
+        }
+        
+        async function generateMeterReport() {
+            try {
+                // Continue with the existing report generation
+                const response = await fetch(`${BACKEND_URL}/generate-meter-report`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mpan: localStorage.getItem('mpan'),
+                        ihd_mac: localStorage.getItem('ihd_mac'),
+                        house_number: localStorage.getItem('house_number'),
+                        postcode: localStorage.getItem('postcode')
+                    })
+                });
+                
+                const responseText = await response.text();
+                //console.log('Raw response:', responseText);
+                
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to fetch meter report');
+                }
+
+                // Format the meter info for display
+                const meterInfo = data.meter_info;
+                let htmlContent = `<h2>Smart Meter Details</h2>`;
+                
+                // Add meter details section first
+                htmlContent += `
+                    <div class="meter-section">
+                        <h3>Meter Details</h3>
+                            <div class="device-info-container">
+                                <div class="device-info">
+                                    <span class="device-info-key">MPAN:</span> ${localStorage.getItem('mpan') || 'Not available'}
+                                </div>
+                                <div class="device-info">
+                                    <span class="device-info-key">In-Home Display (IHD) MAC:</span> ${localStorage.getItem('ihd_mac') || 'Not available'}
+                                </div>
+                                <div class="device-info">   
+                                    <span class="device-info-key">House Number:</span> ${localStorage.getItem('house_number') || 'Not available'}
+                                </div>
+                                <div class="device-info">   
+                                    <span class="device-info-key">Postcode:</span> ${localStorage.getItem('postcode') || 'Not available'}
+                                </div>
+                            </div>
+                    </div>
+                `;
+
+                // Add sections if they exist
+                if (meterInfo.sections) {
+                    for (const [sectionName, content] of Object.entries(meterInfo.sections)) {
+                        htmlContent += `
+                            <div class="meter-section">
+                                <h3>${sectionName}</h3>
+                                <div class="device-info-container">
+                                    ${Array.isArray(content) ? 
+                                        content
+                                            .filter(line => !line.includes('HOME'))
+                                            .map(line => {
+                                                const parts = line.split(':');
+                                                if (parts.length > 1) {
+                                                    return `<div class="device-info"><span class="device-info-key">${parts[0]}:</span>${parts[1]}</div>`;
+                                                }
+                                                return line;
+                                            }).join('') 
+                                        : content}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+
+                // Add date range if available
+                if (data.date_range) {
+                    htmlContent += `
+                        <div class="meter-section">
+                            <h3>Available Data Range</h3>
+                            <div class="device-info-container">
+                                <div class="device-info">
+                                    <span class="device-info-key">From:</span> ${data.date_range.start_date}
+                                </div>
+                                <div class="device-info">
+                                    <span class="device-info-key">To:</span> ${data.date_range.end_date}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Add back button
+                htmlContent += `
+                    <div class="button-container">
+                        <button class="back-button" onclick="showHome()">Back to Home</button>
+                    </div>
+                `;
+                
+                document.getElementById('mainContent').innerHTML = htmlContent;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('mainContent').innerHTML = `
+                    <div class="error-message">
+                        <h3>Error Getting Meter Report</h3>
+                        <p>${error.message}</p>
+                        <div class="button-container">
+                            <button class="back-button" onclick="showHome()">Back to Home</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Convert from DD.MM.YYYY to YYYY-MM-DD (for input elements)
+        function convertToHTMLDate(dateStr) {
+            if (!dateStr) return '';
+            const [day, month, year] = dateStr.split('.');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+
+        // Convert from YYYY-MM-DD to DD.MM.YYYY (for API)
+        function convertToAPIDate(dateStr) {
+            if (!dateStr) return '';
+            const [year, month, day] = dateStr.split('-');
+            return `${day}.${month}.${year}`;
+        }
+
+        async function initializeDateRange() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/available-range?` + new URLSearchParams({
+                    mpan: localStorage.getItem('mpan'),
+                    ihd_mac: localStorage.getItem('ihd_mac')
+                }));
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Store the date range for validation and caching
+                    window.availableDateRange = data;
+                    
+                    const startDate = document.getElementById('startDate');
+                    const endDate = document.getElementById('endDate');
+                    
+                    // Convert dates for HTML input
+                    const htmlStartDate = convertToHTMLDate(data.start_date);
+                    const htmlEndDate = convertToHTMLDate(data.end_date);
+                    
+                    // Get cached dates or use available range
+                    const cachedStartDate = localStorage.getItem('lastStartDate') || htmlStartDate;
+                    const cachedEndDate = localStorage.getItem('lastEndDate') || htmlEndDate;
+                    
+                    // Set input values
+                    startDate.value = cachedStartDate;
+                    endDate.value = cachedEndDate;
+                    
+                    // Show readable dates in labels
+                    document.getElementById('startDateLabel').textContent = data.start_date;
+                    document.getElementById('endDateLabel').textContent = data.end_date;
+                    
+                    // Set min/max attributes
+                    startDate.min = htmlStartDate;
+                    startDate.max = htmlEndDate;
+                    endDate.min = htmlStartDate;
+                    endDate.max = htmlEndDate;
+                    
+                    // Function to validate date range
+                    function validateDateRange() {
+                        const start = new Date(startDate.value);
+                        const end = new Date(endDate.value);
+                        const minDate = new Date(htmlStartDate);
+                        const maxDate = new Date(htmlEndDate);
+                        
+                        let errorMessage = null;
+                        
+                        if (start > end) {
+                            errorMessage = 'Start date must be before end date';
+                        } else if (start < minDate || start > maxDate) {
+                            errorMessage = 'Start date must be within the available range';
+                        } else if (end < minDate || end > maxDate) {
+                            errorMessage = 'End date must be within the available range';
+                        }
+                        
+                        if (errorMessage) {
+                            showCustomAlert(errorMessage);
+                            return false;
+                        }
+                        return true;
+                    }
+                    
+                    // Add event listeners to update cache and validate when dates change
+                    startDate.addEventListener('change', function() {
+                        if (validateDateRange()) {
+                            localStorage.setItem('lastStartDate', this.value);
+                        } else {
+                            this.value = localStorage.getItem('lastStartDate') || htmlStartDate;
+                        }
+                    });
+                    
+                    endDate.addEventListener('change', function() {
+                        if (validateDateRange()) {
+                            localStorage.setItem('lastEndDate', this.value);
+                        } else {
+                            this.value = localStorage.getItem('lastEndDate') || htmlEndDate;
+                        }
+                    });
+                    
+                    // Initial validation
+                    validateDateRange();
+                }
+            } catch (error) {
+                console.error('Error initializing date range:', error);
+                showCustomAlert('Error loading available date range');
+            }
+        }
+        
+        function updateDateRange() {
+            const startDate = document.getElementById('startDate');
+            const endDate = document.getElementById('endDate');
+            
+            // Convert YYYY-MM-DD to DD.MM.YYYY for display
+            document.getElementById('startDateLabel').textContent = 
+                startDate.value.split('-').reverse().join('.');
+            document.getElementById('endDateLabel').textContent = 
+                endDate.value.split('-').reverse().join('.');
+        }
+        
+        async function generateEnergyReport() {
+            try {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                
+                // Convert dates to API format
+                const formattedStartDate = convertToAPIDate(startDate);
+                const formattedEndDate = convertToAPIDate(endDate);
+                
+                console.log('Generating report for dates:', { formattedStartDate, formattedEndDate });
+                
+                // Show loading state
+                document.getElementById('energyUsageContent').innerHTML = '<p>Retrieving energy usage data...</p>';
+                
+                const response = await fetch(`${BACKEND_URL}/generate-energy-report`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mpan: localStorage.getItem('mpan'),
+                        ihd_mac: localStorage.getItem('ihd_mac'),
+                        start_date: formattedStartDate,
+                        end_date: formattedEndDate
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Report data:', data);
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to generate report');
+                }
+                
+                // Display the report
+                let htmlContent = `
+                    <div class="report-container">
+                        <h2>Energy Usage Report</h2>
+                        
+                        <div class="meter-section">
+                            <div class="device-info">
+                                <span class="device-info-key">From:</span> ${formattedStartDate}
+                            </div>
+                            <div class="device-info">
+                                <span class="device-info-key">To:</span> ${formattedEndDate}
+                            </div>
+                        </div>`;
+
+                // Add Statistics
+                if (data.report_data && data.report_data.statistics) {
+                    const stats = data.report_data.statistics;
+                    htmlContent += `
+                        <div class="meter-section">
+                            <h3>Statistics</h3>
+                            <div class="device-info">
+                                <span class="device-info-key">Total Usage:</span> ${stats.monthly.total.toFixed(2)} kWh
+                            </div>
+                            <div class="device-info">
+                                <span class="device-info-key">Average Monthly Usage:</span> ${stats.monthly.average.toFixed(2)} kWh
+                            </div>
+                            <div class="device-info">
+                                <span class="device-info-key">Average Daily Usage:</span> ${stats.daily.average.toFixed(2)} kWh
+                            </div>
+                        </div>`;
+                }
+
+                // Add Insights with better month-over-month change handling
+                if (data.report_data && data.report_data.insights) {
+                    htmlContent += `
+                        <div class="meter-section">
+                            <h3>Insights</h3>
+                            <div class="device-info">
+                                <span class="device-info-key">Average monthly consumption:</span>
+                                <span class="device-info-value">${data.report_data.statistics.monthly.average.toFixed(2)} kWh</span>
+                            </div>
+                            <div class="device-info">
+                                <span class="device-info-key">Highest monthly consumption:</span>
+                                <span class="device-info-value">${data.report_data.statistics.monthly.maximum.toFixed(2)} kWh</span>
+                            </div>
+                            <div class="device-info">
+                                <span class="device-info-key">Lowest monthly consumption:</span>
+                                <span class="device-info-value">${data.report_data.statistics.monthly.minimum.toFixed(2)} kWh</span>
+                            </div>
+                            <div class="device-info">
+                                <span class="device-info-key">Total consumption:</span>
+                                <span class="device-info-value">${data.report_data.statistics.monthly.total.toFixed(2)} kWh</span>
+                            </div>
+                            <div class="device-info">
+                                <span class="device-info-key">Average daily consumption:</span>
+                                <span class="device-info-value">${data.report_data.statistics.daily.average.toFixed(2)} kWh</span>
+                            </div>`;
+                            
+                    // Handle the percentage change insight separately
+                    const changeInsight = data.report_data.insights.find(i => i.includes('compared to previous month'));
+                    if (changeInsight) {
+                        const percentageMatch = changeInsight.match(/decreased by ([\d.]+)%/);
+                        const currentMonth = new Date(data.report_data.metadata.end_date.split('.').reverse().join('-')).toLocaleString('default', { month: 'long' });
+                        const previousMonth = new Date(data.report_data.metadata.start_date.split('.').reverse().join('-')).toLocaleString('default', { month: 'long' });
+                        
+                        if (percentageMatch && percentageMatch[1]) {
+                            htmlContent += `
+                                <div class="device-info">
+                                    <span class="device-info-key">Change from previous month:</span>
+                                    <span class="device-info-value">Decreased by ${percentageMatch[1]}% (${currentMonth} vs ${previousMonth})</span>
+                                </div>`;
+                        }
+                    }
+                    
+                    htmlContent += `</div>`;
+                }
+
+                // Add consumption data section with larger charts
+                if (data.report_data && data.report_data.graph_data) {
+                    htmlContent += `
+                        <div class="meter-section">
+                            <h3>Monthly Usage</h3>
+                            <div class="chart-container monthly-chart">
+                                <canvas id="monthlyChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="meter-section">
+                            <h3>Daily Usage</h3>
+                            <div class="chart-container daily-chart">
+                                <canvas id="dailyChart"></canvas>
+                            </div>
+                        </div>`;
+                }
+
+                // Add back button
+                htmlContent += `
+                        <div class="button-container">
+                            <button class="back-button" onclick="showHome()">Back to Home</button>
+                        </div>
+                    </div>`;
+                
+                document.getElementById('energyUsageContent').innerHTML = htmlContent;
+                
+                // Create charts if we have graph data
+                if (data.report_data && data.report_data.graph_data) {
+                    const graphData = data.report_data.graph_data;
+                    
+                    // Create Monthly Chart
+                    new Chart(document.getElementById('monthlyChart'), {
+                        type: 'line',
+                        data: graphData.monthly,
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Monthly Energy Consumption'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Consumption (kWh)'
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Month'
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Create Daily Chart with improved configuration
+                    new Chart(document.getElementById('dailyChart'), {
+                        type: 'line',
+                        data: graphData.daily,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Daily Energy Consumption'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Consumption (kWh)'
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Date'
+                                    },
+                                    ticks: {
+                                        maxRotation: 45,  // Angle the labels
+                                        minRotation: 45,  // Keep them consistent
+                                        autoSkip: true,   // Skip labels that would overlap
+                                        maxTicksLimit: 20  // Limit the number of x-axis labels
+                                    }
+                                }
+                            },
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            },
+                            elements: {
+                                point: {
+                                    radius: 2,  // Smaller points
+                                    hitRadius: 6  // Larger hit area for interaction
+                                }
+                            }
+                        }
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Error generating report:', error);
+                document.getElementById('energyUsageContent').innerHTML = `
+                    <div class="error-message">
+                        <h3>Error Generating Report</h3>
+                        <p>${error.message}</p>
+                        <div class="button-container">
+                            <button class="back-button" onclick="showHome()">Back to Home</button>
+                        </div>
+                    </div>`;
+            }
+        }
+        
+        // Add the download function
+        async function downloadEnergyData() {
+            try {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                
+                // Convert dates to API format
+                const formattedStartDate = convertToAPIDate(startDate);
+                const formattedEndDate = convertToAPIDate(endDate);
+                
+                const response = await fetch(`${BACKEND_URL}/meter-data`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mpan: localStorage.getItem('mpan'),
+                        ihd_mac: localStorage.getItem('ihd_mac'),
+                        start_date: formattedStartDate,
+                        end_date: formattedEndDate
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (!data.daily_data || !Array.isArray(data.daily_data)) {
+                    throw new Error('No daily consumption data available');
+                }
+                
+                // Convert the data to CSV format with 3 decimal places
+                let csvContent = 'Date,Consumption (kWh)\n';
+                data.daily_data.forEach(day => {
+                    const formattedValue = Number(day.value).toFixed(3);
+                    csvContent += `${day.timestamp},${formattedValue}\n`;
+                });
+                
+                // Create and trigger download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const dateStr = new Date().toISOString().split('T')[0];
+                
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `energy_data_${dateStr}.csv`;  // .csv extension is already included
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                // Cleanup
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+            } catch (error) {
+                console.error('Error downloading energy data:', error);
+                alert(`Failed to download energy data: ${error.message}`);
+            }
+        }
+        
+        // Initialize the app
+        showHome();
+    </script>
+</body>
+</html> 
