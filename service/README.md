@@ -4,13 +4,14 @@ This service provides energy usage analysis for smart meter data. It consists of
 
 ## 1. Architecture
 
-mermaid
+```mermaid
 graph TD
-User[User Browser] -->|HTTPS| Caddy[Caddy Reverse Proxy]
-Caddy -->|Port 8081| Frontend[Frontend Container<br/>Nginx]
-Caddy -->|Port 8080| WordPress[WordPress Container]
-Frontend -->|Port 8000| Backend[Backend Container<br/>FastAPI]
-Backend -->|Analysis| Backend
+    User[User Browser] -->|HTTPS| Caddy[Caddy Reverse Proxy]
+    Caddy -->|Port 8081| Frontend[Frontend Container Nginx]
+    Caddy -->|Port 8080| WordPress[WordPress Container]
+    Frontend -->|Port 8000| Backend[Backend Container FastAPI]
+    Backend -->|Analysis using n3rgy API| Backend
+```
 
 ## 2. Components
 
